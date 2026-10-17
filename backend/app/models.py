@@ -76,6 +76,37 @@ class LLMMissing(BaseModel):
     ideas: list[LLMIdea]
 
 
+class LLMSeenPlace(BaseModel):
+    name: str
+    city: str
+    country: str
+    evidence: str
+    confidence: str      # high, medium, low
+
+
+class LLMSeen(BaseModel):
+    summary: str
+    places: list[LLMSeenPlace]
+
+
+class LLMSocialIdea(BaseModel):
+    name: str
+    area: str
+    category: str
+    why: str
+    duration_min: int
+    est_cost_usd: int
+    indoor: bool
+    needs_ticket: bool
+    lat: float
+    lng: float
+    source_numbers: list[int]
+
+
+class LLMSocial(BaseModel):
+    ideas: list[LLMSocialIdea]
+
+
 # ---------- API shapes ----------
 
 Budget = Literal["low", "medium", "high"]
@@ -115,6 +146,20 @@ class TripPrefs(BaseModel):
     allergies: str = ""
     accessibility: str = ""
     must_see: str = ""
+    video_places: list["VideoPlace"] = []   # places found in the user's videos/screenshots
+
+
+class Source(BaseModel):
+    title: str
+    uri: str
+
+
+class VideoPlace(BaseModel):
+    name: str
+    city: str = ""
+    evidence: str = ""        # what in the video/screenshot shows it
+    confidence: str = "medium"
+    source: str = ""          # "TikTok link", "Screenshot", ...
 
 
 class Candidate(BaseModel):
@@ -134,6 +179,8 @@ class Candidate(BaseModel):
     place: Optional[PlaceInfo] = None
     priority: Literal["normal", "must"] = "normal"
     distance_km: Optional[float] = None   # from the city center
+    evidence: str = ""                    # why we think it was in the user's video
+    sources: list[Source] = []            # web articles (social picks)
 
 
 class Stop(BaseModel):
@@ -312,3 +359,6 @@ class HotelRequest(BaseModel):
 class SetHotelRequest(BaseModel):
     itinerary: Itinerary
     hotel: Optional[Hotel] = None
+
+
+TripPrefs.model_rebuild()

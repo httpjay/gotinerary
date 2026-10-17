@@ -34,9 +34,12 @@ async def read_link(url: str) -> dict:
         return {"platform": "other", "readable": False, "caption": "", "author": "",
                 "note": "That doesn't look like a link. Describe the place you saw instead."}
     platform = platform_of(url)
+    if platform == "instagram":
+        return {"platform": platform, "readable": False, "caption": "", "author": "",
+                "note": "Instagram doesn't let apps read reels. Add a screenshot or a screen recording of the reel below, and we'll find the places in it."}
     if platform not in OEMBED:
         return {"platform": platform, "readable": False, "caption": "", "author": "",
-                "note": "We can't read this kind of link. Please describe what you saw in the video."}
+                "note": "We can't read this kind of link. Add a screenshot, or describe what you saw."}
     try:
         async with httpx.AsyncClient(timeout=10, follow_redirects=True) as c:
             r = await c.get(OEMBED[platform], params={"url": url, "format": "json"})

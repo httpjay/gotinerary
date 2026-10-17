@@ -104,6 +104,7 @@ What they saw or want (from a video caption or their own words): {prefs.inspirat
 Trip length: {days} days starting {prefs.start_date}. Travelers: {prefs.travelers}. Budget level: {prefs.budget}.
 Interests: {", ".join(prefs.interests) or "a good mix"}. Pace: {prefs.pace}.
 Must-see requests: {prefs.must_see or "none"}. Accessibility needs: {prefs.accessibility or "none"}.
+Places found in the traveler's own videos/screenshots (put EACH in group "video", keep the same name): {json.dumps([v.name + (", " + v.city if v.city else "") for v in prefs.video_places]) or "none"}
 
 Choose ONE base city for the trip (destination_city), its country, and the main international airport code (airport_code, 3 letters).
 center_lat / center_lng: the city center.
@@ -114,8 +115,26 @@ Include the must-see requests as ideas.
 {GROUP_RULES}"""
     raw: LLMDiscovery = await planner.generate(prompt, LLMDiscovery)
     cands = [_to_candidate(i) for i in raw.ideas if i.group in ("video", "landmark", "gem")]
+    cands = attach_video_evidence(cands, prefs, raw.center_lat, raw.center_lng)
     cands = await verify_all(cands, raw.destination_city, raw.center_lat, raw.center_lng)
     return raw, cands
+
+
+def attach_video_evidence(cands: list[Candidate], prefs: TripPrefs, lat: float, lng: float) -> list[Candidate]:
+    """Link places from the user's videos to the AI ideas; add any the AI left out."""
+    out = list(cands)
+    for v in prefs.video_places:
+        match = max(out, key=lambda c: _similar(c.name, v.name), default=None)
+        if match and _similar(match.name, v.name) >= 0.6:
+            i = out.index(match)
+            out[i] = match.model_copy(update={"group": "video", "evidence": v.evidence})
+        else:
+            out.insert(0, Candidate(id=uuid.uuid4().hex[:8], name=v.name, group="video", area=v.city,
+                                    category="sight", why="Seen in your video.", duration_min=60,
+                                    est_cost_usd=0, indoor=False, lat=lat, lng=lng, evidence=v.evidence))
+    # User's own places first, so duplicates keep their evidence.
+    out.sort(key=lambda c: c.group != "video")
+    return out
 
 
 async def missing(prefs: TripPrefs, city: str, lat: float, lng: float,

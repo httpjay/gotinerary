@@ -37,7 +37,12 @@ function Card({ c, state, onSet, onFocus, focused }) {
         <div className="dtop"><Verified c={c} small /><Rating place={c.place} /></div>
         <h4>{CATEGORY_ICON[c.category] || "📍"} {c.name}</h4>
         <p className="muted-sm">{c.place?.address || c.area}</p>
+        {c.evidence && <p className="evidence">📱 In your reel: {c.evidence}</p>}
         <p className="why">{c.why}</p>
+        {c.sources?.length > 0 && (
+          <p className="sources">Source{c.sources.length > 1 ? "s" : ""}: {c.sources.map((s, i) => (
+            <a key={s.uri} href={s.uri} target="_blank" rel="noreferrer">{s.title}{i < c.sources.length - 1 ? ", " : ""}</a>))}</p>
+        )}
         <div className="facts">
           <span title="Estimated visit length">⏱ {hrs(c.duration_min)}</span>
           <span title="Estimated cost per person">{c.est_cost_usd ? `~$${c.est_cost_usd}` : "Free"} <em>est.</em></span>
@@ -60,7 +65,7 @@ function Card({ c, state, onSet, onFocus, focused }) {
   );
 }
 
-export default function Discover({ disc, prefs, onBuild, building, focusId, setFocusId, extra, setExtra, choice, setChoice }) {
+export default function Discover({ disc, prefs, social, onBuild, building, focusId, setFocusId, extra, setExtra, choice, setChoice }) {
   const [missingBusy, setMissingBusy] = useState(false);
   const [missing, setMissing] = useState(null);
   const [q, setQ] = useState("");
@@ -122,6 +127,18 @@ export default function Discover({ disc, prefs, onBuild, building, focusId, setF
 
       {GROUPS.map((g) => {
         const items = all.filter((c) => c.group === g.id);
+        if (g.id === "social" && !items.length) {
+          if (!social || (social.status === "done" && !social.note)) return null;
+          return (
+            <section key={g.id} className="dgroup">
+              <h3>{g.title}</h3>
+              <p className="muted-sm">{g.sub}</p>
+              {social.status === "loading"
+                ? <div className="loading-inline"><div className="spinner" /> Searching recent articles about TikTok and Instagram spots...</div>
+                : <p className="hint">{social.note}</p>}
+            </section>
+          );
+        }
         if (!items.length) return null;
         return (
           <section key={g.id} className="dgroup">
@@ -165,7 +182,12 @@ export default function Discover({ disc, prefs, onBuild, building, focusId, setF
               <div key={c.id} className={`mini${choice[c.id] ? " on" : ""}`}>
                 <div className="dtop"><Verified c={c} small /><Rating place={c.place} /></div>
                 <strong>{CATEGORY_ICON[c.category] || "📍"} {c.name}</strong>
-                <p className="why">{c.why}</p>
+                {c.evidence && <p className="evidence">📱 In your reel: {c.evidence}</p>}
+        <p className="why">{c.why}</p>
+        {c.sources?.length > 0 && (
+          <p className="sources">Source{c.sources.length > 1 ? "s" : ""}: {c.sources.map((s, i) => (
+            <a key={s.uri} href={s.uri} target="_blank" rel="noreferrer">{s.title}{i < c.sources.length - 1 ? ", " : ""}</a>))}</p>
+        )}
                 {choice[c.id]
                   ? <span className="added">✓ Added</span>
                   : <button className="btn tiny" onClick={() => addExtra({ ...c, group: "gem" })}>+ Add to trip</button>}

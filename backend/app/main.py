@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -13,11 +13,11 @@ from pydantic import BaseModel
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
-from . import demo, discovery, engine, planner  # noqa: E402
+from . import demo, discovery, engine, planner, social_ai  # noqa: E402
 from .models import (BuildRequest, Candidate, Day, DayEditRequest, DayEditResponse,  # noqa: E402
                      DiscoverResponse, Hotel, HotelRequest, Itinerary, MissingRequest,
                      ReplanRequest, ReplanResponse, SearchRequest, SetHotelRequest, Stop,
-                     SwapRequest, SwapResponse, TripPrefs, TripRequest)
+                     Source, SwapRequest, SwapResponse, TripPrefs, TripRequest, VideoPlace)
 from .providers import places, social  # noqa: E402
 from .scheduling import (BUFFER, DAY_START, day_date, optimize_route, schedule,  # noqa: E402
                          to_min, to_stop)
@@ -48,11 +48,85 @@ async def inspiration(req: LinkRequest):
     return await social.read_link(req.url)
 
 
+MAX_FILES = 6
+IMAGE_MAX = 10 * 1024 * 1024
+VIDEO_MAX = 100 * 1024 * 1024
+
+
+class MediaResponse(BaseModel):
+    summary: str
+    places: list[VideoPlace]
+
+
+@app.post("/api/inspiration/media", response_model=MediaResponse)
+async def inspiration_media(files: list[UploadFile] = File(default=[]), text: str = Form(default=""),
+                            source: str = Form(default="Screenshot")):
+    """Find places in screenshots / screen recordings of TikTok or Instagram reels."""
+    if not planner.has_key():
+        raise HTTPException(400, "Reading videos and screenshots needs a Gemini key.")
+    if not files and not text.strip():
+        raise HTTPException(400, "Add a screenshot, a video, or a caption.")
+    if len(files) > MAX_FILES:
+        raise HTTPException(400, f"Please add at most {MAX_FILES} files.")
+    data = []
+    for f in files:
+        mime = (f.content_type or "").lower()
+        if mime == "video/quicktime":
+            mime = "video/mov"
+        if not (mime.startswith("image/") or mime.startswith("video/")):
+            raise HTTPException(400, f"{f.filename}: only images and videos are supported.")
+        b = await f.read()
+        limit = VIDEO_MAX if mime.startswith("video/") else IMAGE_MAX
+        if len(b) > limit:
+            raise HTTPException(400, f"{f.filename} is too big (max {limit // (1024 * 1024)} MB).")
+        data.append((b, mime))
+    try:
+        seen = await social_ai.read_media(data, text)
+    except Exception as e:  # noqa: BLE001
+        log.exception("media read failed")
+        raise HTTPException(502, f"Gemini could not read these files: {e}") from e
+    places_out = [VideoPlace(name=p.name, city=p.city, evidence=p.evidence, confidence=p.confidence,
+                             source="Video" if any(m.startswith("video/") for _, m in data) else
+                             ("Screenshot" if data else "Caption"))
+                  for p in seen.places if p.confidence in ("high", "medium")]
+    return MediaResponse(summary=seen.summary, places=places_out)
+
+
+class SocialRequest(BaseModel):
+    prefs: TripPrefs
+    destination: str
+    country: str = ""
+    center_lat: float
+    center_lng: float
+    skip: list[str] = []
+
+
+class SocialResponse(BaseModel):
+    candidates: list[Candidate]
+    sources: list[Source]
+    note: str
+
+
+@app.post("/api/social-picks", response_model=SocialResponse)
+async def social_picks(req: SocialRequest):
+    if not planner.has_key():
+        return SocialResponse(candidates=[], sources=[], note="Social picks need a Gemini key.")
+    try:
+        cands, sources, note = await social_ai.social_picks(req.prefs, req.destination, req.country, req.skip)
+    except Exception as e:  # noqa: BLE001
+        log.exception("social picks failed")
+        return SocialResponse(candidates=[], sources=[], note=f"Couldn't load social picks right now ({e}).")
+    cands = await discovery.verify_all(cands, req.destination, req.center_lat, req.center_lng)
+    skip = {discovery._norm(n) for n in req.skip}
+    cands = [c for c in cands if discovery._norm(c.name) not in skip]
+    return SocialResponse(candidates=cands, sources=sources, note=note)
+
+
 @app.post("/api/discover", response_model=DiscoverResponse)
 async def discover(prefs: TripPrefs):
     n = engine.trip_days(prefs)
     assumptions = []
-    if not prefs.destination and not prefs.inspiration:
+    if not prefs.destination and not prefs.inspiration and not prefs.video_places:
         raise HTTPException(400, "Tell us a destination or what you saw.")
     if prefs.travelers == 1:
         assumptions.append("Planning for 1 traveler.")

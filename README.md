@@ -6,7 +6,8 @@ Built solo for the LA Hacks AI Hackathon 2026 (Applied Intelligence track). Base
 
 ## The journey
 1. **Onboarding (3 short steps):** destination *or* a TikTok/YouTube link plus what you saw → dates, travelers, budget → pace, interests, day hours, diet, allergies, stay type, must-sees.
-2. **Discovery:** three groups: *From your video*, *Must-see landmarks*, *Hidden gems*. Each card shows a **✓ Verified · Google** or **⚠ AI estimate** badge, rating and review count (with source), photo, hours, visit length, cost estimate, ticket hint, distance. Add / Must-do / Skip / add your own place. **"What might I be missing?"** suggests nearby places without forcing them in.
+   - **Reels → places:** paste TikTok / Instagram / YouTube links (TikTok and YouTube captions are read through their public oEmbed), and/or **upload screenshots or a screen recording of any reel**. Gemini (multimodal) watches the video, reads on-screen text and captions, and lists the places it can actually see, each with its evidence ("On-screen text says ..."). Low-confidence guesses are dropped.
+2. **Discovery:** groups: *From your reels* (with the evidence), *Popular on social media* (Gemini + Google Search grounding; every pick links to the web article it came from, clearly labeled as not TikTok's own data), *From your video*, *Must-see landmarks*, *Hidden gems*. Each card shows a **✓ Verified · Google** or **⚠ AI estimate** badge, rating and review count (with source), photo, hours, visit length, cost estimate, ticket hint, distance. Add / Must-do / Skip / add your own place. **"What might I be missing?"** suggests nearby places without forcing them in.
 3. **Itinerary engine (rule-based):** groups places into days by area, respects must-dos, **never schedules a place on a day it's closed**, fits visits inside opening hours, adds travel time + delay buffers, orders the route (nearest-neighbor + 2-opt), and adds lunch and dinner from real nearby restaurants that fit the diet. Anything that can't fit is listed with a reason.
 4. **Edit:** reorder, remove, optimize a day, swap a place or restaurant; only that day is rebuilt. **Re-plan my day** for live changes.
 5. **Stay & flights:** well-rated stays near the middle of your plan, with prefilled Booking.com / Expedia / Google Hotels links. Choosing a stay re-times every day from the hotel. Prefilled Google Flights / Kayak / Expedia searches.
@@ -24,7 +25,8 @@ Built solo for the LA Hacks AI Hackathon 2026 (Applied Intelligence track). Base
 - **Backend:** Python FastAPI, Pydantic
 - **AI:** Google Gemini (`gemini-3.8-flash`), structured JSON output
 - **Place data:** Google Places API (New): Text Search + Place Photos, behind a small provider interface (`backend/app/providers/places.py`) with caching and retries
-- **Social links:** TikTok / YouTube public oEmbed (caption + creator). Other links → user describes what they saw.
+- **Social links:** TikTok / YouTube public oEmbed (caption + creator). Instagram doesn't allow apps to read reels without Meta approval, so users add a screenshot or screen recording instead, which Gemini reads (`backend/app/social_ai.py`).
+- **Social picks:** Gemini with Google Search grounding; picks without a real source are dropped.
 - **Rule-based modules:** `hours.py` (opening hours per date), `scheduling.py` (travel, buffers, timetable, route optimizer), `engine.py` (day grouping, meals, conflicts, hotels)
 
 ## Run it

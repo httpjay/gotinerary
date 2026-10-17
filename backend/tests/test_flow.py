@@ -126,3 +126,44 @@ def test_journey():
 if __name__ == "__main__":
     test_journey()
     print("ALL OK")
+
+
+# ---------- Social inspiration (fake Gemini) ----------
+from app import social_ai  # noqa: E402
+from app.models import LLMSeen, LLMSeenPlace, Source  # noqa: E402
+
+
+async def fake_read_media(files, text):
+    assert files and files[0][1].startswith("image/")
+    return LLMSeen(summary="Temple vibes", places=[
+        LLMSeenPlace(name="Fushimi Inari Taisha", city="Kyoto", country="Japan", evidence="Text says 'Fushimi Inari'", confidence="high"),
+        LLMSeenPlace(name="Nishiki Market", city="Kyoto", country="Japan", evidence="Sign reads Nishiki", confidence="medium"),
+        LLMSeenPlace(name="Some Blur", city="Kyoto", country="Japan", evidence="unclear", confidence="low")])
+
+
+async def fake_social(prefs, city, country, skip):
+    c = D._to_candidate(idea("Gion", "gem", "Gion"), "social")
+    c.sources = [Source(title="Time Out Kyoto", uri="https://example.com/a")]
+    return [c], c.sources, ""
+
+social_ai.read_media = fake_read_media
+social_ai.social_picks = fake_social
+
+
+def test_social():
+    r = c.post("/api/inspiration/media", files=[("files", ("a.png", b"\x89PNG....", "image/png"))],
+               data={"text": "caption"}).json()
+    assert [p["name"] for p in r["places"]] == ["Fushimi Inari Taisha", "Nishiki Market"], r
+    prefs = {"destination": "", "start_date": "2026-11-09", "end_date": "2026-11-10", "video_places": r["places"]}
+    d = c.post("/api/discover", json=prefs).json()
+    vids = [x for x in d["candidates"] if x["group"] == "video"]
+    assert {v["name"] for v in vids} == {"Fushimi Inari Taisha", "Nishiki Market"}, vids
+    assert all(v["evidence"] for v in vids) and all(v["verified"] for v in vids)
+    s = c.post("/api/social-picks", json={"prefs": prefs, "destination": "Kyoto", "center_lat": 35.01,
+                                          "center_lng": 135.76, "skip": ["Kinkaku-ji"]}).json()
+    assert s["candidates"][0]["sources"][0]["uri"] and s["candidates"][0]["verified"]
+    print("social OK")
+
+
+if __name__ == "__main__":
+    test_social()

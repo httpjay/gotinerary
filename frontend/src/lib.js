@@ -20,6 +20,16 @@ async function post(path, body) {
 export const api = {
   health: () => fetch(`${API}/api/health`).then((r) => r.json()),
   inspiration: (url) => post("/api/inspiration", { url }),
+  mediaPlaces: async (files, text) => {
+    const fd = new FormData();
+    files.forEach((f) => fd.append("files", f));
+    fd.append("text", text || "");
+    const res = await fetch(`${API}/api/inspiration/media`, { method: "POST", body: fd });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(j.detail || `Request failed (${res.status})`);
+    return j;
+  },
+  socialPicks: (req) => post("/api/social-picks", req),
   discover: (prefs) => post("/api/discover", prefs),
   missing: (req) => post("/api/missing", req),
   search: (req) => post("/api/places/search", req),
@@ -60,7 +70,8 @@ export const REASONS = [
 ];
 
 export const GROUPS = [
-  { id: "video", title: "From your video", sub: "Places from what you saw or described" },
+  { id: "video", title: "From your reels", sub: "Places found in your videos, screenshots or description" },
+  { id: "social", title: "Popular on social media", sub: "From recent web articles about TikTok and Instagram spots. Not TikTok's own data." },
   { id: "landmark", title: "Must-see landmarks", sub: "The famous places most visitors go to" },
   { id: "gem", title: "Hidden gems", sub: "Loved by locals, close to the big sights" },
   { id: "custom", title: "Added by you", sub: "Your own places" },

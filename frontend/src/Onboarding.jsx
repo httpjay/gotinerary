@@ -28,34 +28,54 @@ const STEPS = ["Where", "When & who", "Your style"];
 export default function Onboarding({ onDone, loading, health }) {
   const start = tomorrow();
   const [step, setStep] = useState(0);
-  const [link, setLink] = useState({ url: "", busy: false, result: null });
+  const [link, setLink] = useState({ url: "", busy: false });
+  const [links, setLinks] = useState([]); // { url, readable, caption, author, note, platform }
+  const [files, setFiles] = useState([]);
+  const [scan, setScan] = useState({ busy: false, error: "", summary: "" });
   const [p, setP] = useState({
     destination: "", inspiration: "", inspiration_url: "", origin: "",
     start_date: start, end_date: addDays(start, 2), flexible_dates: false,
     travelers: 2, budget: "medium", budget_total: "", budget_includes_flights: false,
     pace: "balanced", interests: ["Food", "Local culture"], day_start: "09:00", day_end: "21:30",
-    lodging: "hotel", diet: "none", allergies: "", accessibility: "", must_see: "",
+    lodging: "hotel", diet: "none", allergies: "", accessibility: "", must_see: "", video_places: [],
   });
   const set = (k) => (v) => setP((x) => ({ ...x, [k]: v }));
   const nights = Math.max(1, Math.round((new Date(p.end_date) - new Date(p.start_date)) / 86400000) + 1);
 
   async function readLink() {
-    if (!link.url.trim()) return;
-    setLink((l) => ({ ...l, busy: true, result: null }));
+    const url = link.url.trim();
+    if (!url || links.some((l) => l.url === url)) return;
+    setLink({ url, busy: true });
     try {
-      const r = await api.inspiration(link.url);
-      setLink((l) => ({ ...l, busy: false, result: r }));
-      setP((x) => ({ ...x, inspiration_url: link.url,
-        inspiration: r.caption ? `${r.caption}${x.inspiration ? `\n${x.inspiration}` : ""}` : x.inspiration }));
+      const r = await api.inspiration(url);
+      setLinks((ls) => [...ls, { url, ...r }]);
     } catch (e) {
-      setLink((l) => ({ ...l, busy: false, result: { readable: false, note: e.message } }));
-    }
+      setLinks((ls) => [...ls, { url, readable: false, note: e.message }]);
+    } finally { setLink({ url: "", busy: false }); }
   }
 
-  const canNext = step === 0 ? (p.destination.trim() || p.inspiration.trim()) : step === 1 ? p.end_date >= p.start_date : true;
+  function addFiles(list) {
+    const ok = [...list].filter((f) => f.type.startsWith("image/") || f.type.startsWith("video/"));
+    setFiles((fs) => [...fs, ...ok].slice(0, 6));
+  }
+
+  const captions = links.filter((l) => l.caption).map((l) => `${l.platform} caption: ${l.caption}`).join("\n");
+
+  async function findInReels() {
+    setScan({ busy: true, error: "", summary: "" });
+    try {
+      const r = await api.mediaPlaces(files, [captions, p.inspiration].filter(Boolean).join("\n"));
+      const names = new Set(p.video_places.map((v) => v.name.toLowerCase()));
+      setP((x) => ({ ...x, video_places: [...x.video_places, ...r.places.filter((v) => !names.has(v.name.toLowerCase()))] }));
+      setScan({ busy: false, error: r.places.length ? "" : "We couldn't find a clear place. Try a screenshot that shows the name or caption.", summary: r.summary });
+    } catch (e) { setScan({ busy: false, error: e.message, summary: "" }); }
+  }
+
+  const canNext = step === 0 ? (p.destination.trim() || p.inspiration.trim() || captions || p.video_places.length) : step === 1 ? p.end_date >= p.start_date : true;
 
   function submit() {
-    const out = { ...p, budget_total: p.budget_total ? Number(p.budget_total) : null };
+    const out = { ...p, budget_total: p.budget_total ? Number(p.budget_total) : null,
+      inspiration: [captions, p.inspiration].filter(Boolean).join("\n"), inspiration_url: links.map((l) => l.url).join(" ") };
     onDone(out);
   }
 
@@ -77,28 +97,68 @@ export default function Onboarding({ onDone, loading, health }) {
             <input autoFocus value={p.destination} placeholder="Kyoto, Lisbon, Mexico City... (or leave empty)"
               onChange={(e) => set("destination")(e.target.value)} />
           </label>
-          <div className="or">or start from something you saw</div>
-          <div className="field">
-            <span>📱 Paste a TikTok or YouTube link <em>(optional)</em></span>
+          <div className="reelbox">
+            <div className="reel-title">📱 Inspired by TikTok or Instagram reels? <em>(optional)</em></div>
             <div className="inline">
-              <input value={link.url} placeholder="https://www.tiktok.com/@creator/video/..."
+              <input value={link.url} placeholder="Paste a TikTok, Instagram or YouTube link"
                 onChange={(e) => setLink({ ...link, url: e.target.value })}
                 onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), readLink())} />
               <button type="button" className="btn" disabled={link.busy || !link.url.trim()} onClick={readLink}>
-                {link.busy ? "Reading..." : "Read link"}
+                {link.busy ? "Reading..." : "+ Add link"}
               </button>
             </div>
-            {link.result && (
-              <p className={`hint ${link.result.readable ? "ok" : "warn"}`}>
-                {link.result.readable
-                  ? `✓ Read the caption${link.result.author ? ` from @${link.result.author}` : ""}. You can edit it below.`
-                  : `⚠ ${link.result.note}`}
-              </p>
+            {links.map((l) => (
+              <div key={l.url} className={`linkitem ${l.readable ? "ok" : "warn"}`}>
+                <span>{l.readable ? "✓" : "⚠"}</span>
+                <div>
+                  <strong>{l.platform === "tiktok" ? "TikTok" : l.platform === "instagram" ? "Instagram" : l.platform === "youtube" ? "YouTube" : "Link"}</strong>
+                  {l.author ? ` · @${l.author}` : ""}
+                  <div className="muted-sm">{l.readable ? `Caption: “${l.caption.slice(0, 140)}${l.caption.length > 140 ? "…" : ""}”` : l.note}</div>
+                </div>
+                <button type="button" className="x" onClick={() => setLinks((ls) => ls.filter((x) => x.url !== l.url))}>✕</button>
+              </div>
+            ))}
+
+            <label className="drop" onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => { e.preventDefault(); addFiles(e.dataTransfer.files); }}>
+              <input type="file" accept="image/*,video/*" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+              <span className="drop-icon">🎬</span>
+              <span><strong>Add screenshots or a screen recording</strong> of the reels<br />
+                <span className="muted-sm">Works for Instagram and TikTok. Gemini watches the video and reads on-screen text.</span></span>
+            </label>
+            {files.length > 0 && (
+              <div className="files">
+                {files.map((f, i) => (
+                  <span key={i} className="file">{f.type.startsWith("video/") ? "🎥" : "🖼️"} {f.name.slice(0, 22)}
+                    <button type="button" className="x" onClick={() => setFiles(files.filter((_, j) => j !== i))}>✕</button></span>
+                ))}
+              </div>
             )}
+            {(files.length > 0 || captions) && (
+              <button type="button" className="btn primary" disabled={scan.busy || !health || health.mode !== "ai"} onClick={findInReels}>
+                {scan.busy ? "🔍 Watching your reels..." : "🔍 Find places in my reels"}
+              </button>
+            )}
+            {health && health.mode !== "ai" && (files.length > 0 || captions) && <p className="hint warn">Reading reels needs a Gemini key.</p>}
+            {scan.error && <p className="hint warn">⚠ {scan.error}</p>}
+            {p.video_places.length > 0 && (
+              <div className="vplaces">
+                {scan.summary && <p className="muted-sm">🎞 {scan.summary}</p>}
+                {p.video_places.map((v) => (
+                  <div key={v.name} className="vplace">
+                    <div><strong>📍 {v.name}</strong>{v.city ? <span className="muted-sm">, {v.city}</span> : null}
+                      <span className={`conf ${v.confidence}`}>{v.confidence === "high" ? "Clearly shown" : "Probably"}</span>
+                      <div className="muted-sm">{v.source}: {v.evidence}</div></div>
+                    <button type="button" className="x" title="Remove" onClick={() => set("video_places")(p.video_places.filter((x) => x.name !== v.name))}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="hint">Your files are sent to Google Gemini only to read them. We don't save them.</p>
           </div>
           <label className="field">
-            <span>Describe what you saw or want</span>
-            <textarea rows={3} value={p.inspiration}
+            <span>Or describe what you saw or want</span>
+            <textarea rows={2} value={p.inspiration}
               placeholder="e.g. Red gates on a mountain path at sunrise, a bamboo forest, and a street food market"
               onChange={(e) => set("inspiration")(e.target.value)} />
           </label>
@@ -194,7 +254,7 @@ export default function Onboarding({ onDone, loading, health }) {
           </button>
         )}
       </div>
-      {step === 0 && !canNext && <p className="hint center">Type a place, or describe what you saw, to continue.</p>}
+      {step === 0 && !canNext && <p className="hint center">Type a place, add a reel, or describe what you saw, to continue.</p>}
       {health && !health.places && (
         <p className="hint center">Note: no Google Maps key, so places will be AI estimates (not verified).</p>
       )}

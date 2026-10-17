@@ -63,9 +63,23 @@ export default function App() {
     try {
       const disc = await api.discover(prefs);
       const choice = Object.fromEntries(disc.candidates.filter((c) => c.group === "video").map((c) => [c.id, "save"]));
-      setTrip({ id: newId(), prefs, disc, extra: [], choice, it: null, bookings: [] });
+      const id = newId();
+      setTrip({ id, prefs, disc, extra: [], choice, it: null, bookings: [], social: { status: "loading", note: "" } });
       setStage("discover"); setFocusId(null);
+      loadSocial(id, prefs, disc);
     } catch (e) { setError(e.message); } finally { setLoading(null); }
+  }
+
+  // "Popular on social media" loads in the background, so the page shows right away.
+  async function loadSocial(id, prefs, disc) {
+    try {
+      const r = await api.socialPicks({ prefs, destination: disc.destination, country: disc.country,
+        center_lat: disc.center_lat, center_lng: disc.center_lng, skip: disc.candidates.map((c) => c.name) });
+      setTrip((t) => (t && t.id === id ? { ...t, extra: [...t.extra, ...r.candidates],
+        social: { status: "done", note: r.note, count: r.candidates.length } } : t));
+    } catch (e) {
+      setTrip((t) => (t && t.id === id ? { ...t, social: { status: "done", note: e.message } } : t));
+    }
   }
 
   async function build(selected) {
@@ -149,7 +163,7 @@ export default function App() {
               <button className="btn ghost" onClick={reset}>← Start over</button>
               {trip.it && <button className="btn ghost" onClick={() => setStage("trip")}>Back to my plan →</button>}
             </div>
-            <Discover disc={trip.disc} prefs={trip.prefs} onBuild={build} building={loading === "build"}
+            <Discover disc={trip.disc} prefs={trip.prefs} social={trip.social} onBuild={build} building={loading === "build"}
               focusId={focusId} setFocusId={setFocusId}
               extra={trip.extra} setExtra={(f) => setTrip((t) => ({ ...t, extra: typeof f === "function" ? f(t.extra) : f }))}
               choice={trip.choice} setChoice={(f) => setTrip((t) => ({ ...t, choice: typeof f === "function" ? f(t.choice) : f }))} />
