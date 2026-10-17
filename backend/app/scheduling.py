@@ -90,6 +90,74 @@ def schedule(stops: list[Stop], start: str, from_lat=None, from_lng=None,
     return out
 
 
+def _route_km(points, start=None) -> float:
+    total, prev = 0.0, start
+    for p in points:
+        if prev is not None:
+            total += haversine_km(prev.lat, prev.lng, p.lat, p.lng)
+        prev = p
+    return total
+
+
+def _best_order(segment, start, end):
+    """Order one group of stops: nearest-neighbor, then 2-opt improvement.
+
+    start / end are the fixed stops before and after the group (or None),
+    so the group also connects well to the meals around it.
+    """
+    if len(segment) < 2:
+        return list(segment)
+    # Nearest-neighbor start
+    left = list(segment)
+    order = []
+    cur = start
+    while left:
+        if cur is None:
+            nxt = left[0]
+        else:
+            nxt = min(left, key=lambda s: haversine_km(cur.lat, cur.lng, s.lat, s.lng))
+        order.append(nxt)
+        left.remove(nxt)
+        cur = nxt
+
+    def cost(o):
+        pts = o + ([end] if end is not None else [])
+        return _route_km(pts, start)
+
+    # 2-opt: reverse parts of the route while it gets shorter
+    improved = True
+    while improved:
+        improved = False
+        for i in range(len(order) - 1):
+            for j in range(i + 1, len(order)):
+                cand = order[:i] + order[i:j + 1][::-1] + order[j + 1:]
+                if cost(cand) + 1e-9 < cost(order):
+                    order, improved = cand, True
+    return order
+
+
+def optimize_route(stops: list[Stop], start: Stop | None = None) -> list[Stop]:
+    """Reduce zigzag across the city.
+
+    Meals (food stops) stay in their place so lunch stays at lunch time and
+    dinner at dinner time. The sights between two meals are re-ordered to
+    make the shortest path.
+    """
+    out: list[Stop] = []
+    segment: list[Stop] = []
+    anchor = start
+    for s in stops + [None]:
+        if s is None or s.category == "food":
+            out += _best_order(segment, anchor, s)
+            segment = []
+            if s is not None:
+                out.append(s)
+                anchor = s
+        else:
+            segment.append(s)
+    return out
+
+
 def day_date(start_date: str, index: int) -> str:
     try:
         d = date.fromisoformat(start_date) + timedelta(days=index)

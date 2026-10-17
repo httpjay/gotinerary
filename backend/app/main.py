@@ -13,7 +13,9 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 from . import demo, planner  # noqa: E402
 from .models import (Day, Itinerary, ReplanRequest, ReplanResponse, Stop,  # noqa: E402
                      SwapRequest, SwapResponse, TripRequest)
-from .scheduling import DAY_START, day_date, schedule, to_min, to_stop  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
+
+from .scheduling import DAY_START, day_date, optimize_route, schedule, to_min, to_stop  # noqa: E402
 
 log = logging.getLogger("gotinerary")
 app = FastAPI(title="GoTinerary API")
@@ -39,11 +41,12 @@ async def plan(req: TripRequest):
 
     days = []
     for i, d in enumerate(raw.days[: req.days]):
-        stops = schedule([to_stop(s) for s in d.stops], DAY_START[req.pace])
+        stops = optimize_route([to_stop(s) for s in d.stops])
+        stops = schedule(stops, DAY_START[req.pace])
         days.append(Day(day=i + 1, date=day_date(req.start_date, i), theme=d.theme, stops=stops))
 
     return Itinerary(
-        destination="Paris" if mode == "demo" else req.destination,
+        destination="Paris" if mode == "demo" else req.destination.strip().title(),
         start_date=req.start_date, budget=req.budget, pace=req.pace,
         interests=req.interests, summary=raw.summary,
         center_lat=raw.center_lat, center_lng=raw.center_lng,
@@ -91,6 +94,7 @@ async def replan(req: ReplanRequest):
     for i, s in enumerate(new_stops):
         new_stops[i] = s.model_copy(update={"status": "upcoming" if s.name in old_names else "new"})
 
+    new_stops = optimize_route(new_stops, SimpleNamespace(lat=lat, lng=lng))
     scheduled = schedule(new_stops, req.current_time, lat, lng)
     new_names = {s.name for s in scheduled}
     new_day = Day(day=day.day, date=day.date, theme=day.theme, stops=done + scheduled)
