@@ -84,7 +84,7 @@ async def inspiration_media(files: list[UploadFile] = File(default=[]), text: st
         seen = await social_ai.read_media(data, text)
     except Exception as e:  # noqa: BLE001
         log.exception("media read failed")
-        raise HTTPException(502, f"Gemini could not read these files: {e}") from e
+        raise HTTPException(502, planner.friendly(e)) from e
     places_out = [VideoPlace(name=p.name, city=p.city, evidence=p.evidence, confidence=p.confidence,
                              source="Video" if any(m.startswith("video/") for _, m in data) else
                              ("Screenshot" if data else "Caption"))
@@ -115,7 +115,7 @@ async def social_picks(req: SocialRequest):
         cands, sources, note = await social_ai.social_picks(req.prefs, req.destination, req.country, req.skip)
     except Exception as e:  # noqa: BLE001
         log.exception("social picks failed")
-        return SocialResponse(candidates=[], sources=[], note=f"Couldn't load social picks right now ({e}).")
+        return SocialResponse(candidates=[], sources=[], note="Couldn't load social picks right now. " + planner.friendly(e))
     cands = await discovery.verify_all(cands, req.destination, req.center_lat, req.center_lng)
     skip = {discovery._norm(n) for n in req.skip}
     cands = [c for c in cands if discovery._norm(c.name) not in skip]
@@ -137,7 +137,7 @@ async def discover(prefs: TripPrefs):
         raw, cands = await discovery.discover(prefs, n)
     except Exception as e:  # noqa: BLE001
         log.exception("discover failed")
-        raise HTTPException(502, f"The AI could not suggest places: {e}") from e
+        raise HTTPException(502, planner.friendly(e)) from e
     return DiscoverResponse(
         destination=raw.destination_city, country=raw.country, airport_code=raw.airport_code,
         center_lat=raw.center_lat, center_lng=raw.center_lng, summary=raw.summary, tips=raw.tips,
@@ -152,7 +152,7 @@ async def missing(req: MissingRequest):
                                        req.selected, req.rejected)
     except Exception as e:  # noqa: BLE001
         log.exception("missing failed")
-        raise HTTPException(502, f"Could not get suggestions: {e}") from e
+        raise HTTPException(502, planner.friendly(e)) from e
 
 
 @app.post("/api/places/search", response_model=list[Candidate])
@@ -210,7 +210,7 @@ async def plan(req: TripRequest):
             raw = await planner.plan_trip(req)
         except Exception as e:  # noqa: BLE001
             log.exception("AI plan failed")
-            raise HTTPException(502, f"The AI planner failed: {e}") from e
+            raise HTTPException(502, planner.friendly(e)) from e
     else:
         raw = demo.demo_itinerary(req.days)
     days = []
@@ -329,7 +329,7 @@ async def swap(req: SwapRequest):
             raw = await planner.swap_stop(req, day, idx) if mode == "ai" else demo.demo_swap(old, used)
         except Exception as e:  # noqa: BLE001
             log.exception("swap failed")
-            raise HTTPException(502, f"Could not find a swap: {e}") from e
+            raise HTTPException(502, planner.friendly(e)) from e
         if raw is None:
             raise HTTPException(404, "No other place found nearby")
         new = await _verify_stop(to_stop(raw.stop, status="new"), it)

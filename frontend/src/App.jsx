@@ -163,7 +163,8 @@ export default function App() {
               <button className="btn ghost" onClick={reset}>← Start over</button>
               {trip.it && <button className="btn ghost" onClick={() => setStage("trip")}>Back to my plan →</button>}
             </div>
-            <Discover disc={trip.disc} prefs={trip.prefs} social={trip.social} onBuild={build} building={loading === "build"}
+            <Discover disc={trip.disc} prefs={trip.prefs} social={trip.social}
+              onRetrySocial={() => { patch({ social: { status: "loading", note: "" } }); loadSocial(trip.id, trip.prefs, trip.disc); }} onBuild={build} building={loading === "build"}
               focusId={focusId} setFocusId={setFocusId}
               extra={trip.extra} setExtra={(f) => setTrip((t) => ({ ...t, extra: typeof f === "function" ? f(t.extra) : f }))}
               choice={trip.choice} setChoice={(f) => setTrip((t) => ({ ...t, choice: typeof f === "function" ? f(t.choice) : f }))} />

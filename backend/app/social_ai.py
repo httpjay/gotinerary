@@ -72,12 +72,14 @@ async def read_media(files: list[tuple[bytes, str]], text: str) -> LLMSeen:
         else:
             parts.append(types.Part.from_bytes(data=data, mime_type=mime))
     parts.append(types.Part.from_text(text=SEEN_PROMPT.format(text=text or "none")))
-    resp = await planner.client().aio.models.generate_content(
-        model=planner.MODEL,
-        contents=[types.Content(role="user", parts=parts)],
-        config=types.GenerateContentConfig(response_mime_type="application/json",
-                                           response_schema=LLMSeen, temperature=0.2),
-    )
+    async def call():
+        return await planner.client().aio.models.generate_content(
+            model=planner.MODEL,
+            contents=[types.Content(role="user", parts=parts)],
+            config=types.GenerateContentConfig(response_mime_type="application/json",
+                                               response_schema=LLMSeen, temperature=0.2),
+        )
+    resp = await planner.with_retry(call)
     if resp.parsed is not None:
         return resp.parsed
     return LLMSeen.model_validate_json(resp.text)
@@ -101,21 +103,30 @@ async def social_picks(prefs: TripPrefs, city: str, country: str, skip_names: li
     """Returns (candidates, sources, note)."""
     client = planner.client()
     year = time.strftime("%Y")
-    research = await client.aio.models.generate_content(
-        model=planner.MODEL,
-        contents=(f"Search the web for places in {city}, {country} that are popular or viral on TikTok and "
-                  f"Instagram Reels in {year} (recent travel articles, 'TikTok famous' lists, creator guides). "
-                  f"Traveler interests: {', '.join(prefs.interests) or 'a good mix'}. Diet: {prefs.diet}. "
-                  "List 6 to 10 specific places, and for each say what makes it popular on social media."),
-        config=types.GenerateContentConfig(tools=[types.Tool(google_search=types.GoogleSearch())], temperature=0.3),
-    )
-    sources = _sources_from(research)
+    question = (f"Search the web for places in {city}, {country} that are popular or viral on TikTok and "
+                f"Instagram Reels in {year} (recent travel articles, 'TikTok famous' lists, creator guides). "
+                f"Traveler interests: {', '.join(prefs.interests) or 'a good mix'}. Diet: {prefs.diet}. "
+                "List 6 to 10 specific places, and for each say what makes it popular on social media.")
+    key = planner.cache_key("search", question)
+    saved = planner.cache_get(key)
+    if saved:
+        text, sources = saved["text"], [Source(**s) for s in saved["sources"]]
+    else:
+        async def call():
+            return await client.aio.models.generate_content(
+                model=planner.MODEL, contents=question,
+                config=types.GenerateContentConfig(tools=[types.Tool(google_search=types.GoogleSearch())],
+                                                   temperature=0.3))
+        research = await planner.with_retry(call)
+        text, sources = research.text or "", _sources_from(research)
+        if sources:
+            planner.cache_put(key, {"text": text, "sources": [s.model_dump() for s in sources]})
     if not sources:
         return [], [], "We couldn't find web sources for social-media picks, so we're not showing any."
     numbered = "\n".join(f"[{i + 1}] {s.title} {s.uri}" for i, s in enumerate(sources))
     structured = await planner.generate(
         f"""Here are research notes about places popular on social media in {city}:
-{research.text}
+{text}
 
 Numbered web sources used:
 {numbered}

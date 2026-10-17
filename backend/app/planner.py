@@ -38,19 +38,95 @@ Rules for every stop:
 """
 
 
-async def generate(prompt: str, schema):
-    resp = await client().aio.models.generate_content(
-        model=MODEL,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=schema,
-            temperature=0.6,
-        ),
-    )
-    if resp.parsed is not None:
-        return resp.parsed
-    return schema.model_validate(json.loads(resp.text))
+# ---------- Reliability: retry on rate limits + saved answers ----------
+import asyncio  # noqa: E402
+import hashlib  # noqa: E402
+import logging  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+log = logging.getLogger("gotinerary.gemini")
+CACHE_FILE = Path(__file__).resolve().parents[1] / ".cache" / "gemini.json"
+_cache: dict | None = None
+
+
+def _load():
+    global _cache
+    if _cache is None:
+        try:
+            _cache = json.loads(CACHE_FILE.read_text())
+        except Exception:  # noqa: BLE001
+            _cache = {}
+    return _cache
+
+
+def cache_get(key: str):
+    return _load().get(key)
+
+
+def cache_put(key: str, value):
+    _load()[key] = value
+    try:
+        CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        CACHE_FILE.write_text(json.dumps(_cache))
+    except Exception:  # noqa: BLE001
+        log.warning("could not save gemini cache")
+
+
+def cache_key(*parts) -> str:
+    return hashlib.sha256("\u241e".join([MODEL, *map(str, parts)]).encode()).hexdigest()
+
+
+def is_rate_limit(e: Exception) -> bool:
+    t = str(e)
+    return "429" in t or "RESOURCE_EXHAUSTED" in t or "503" in t or "UNAVAILABLE" in t
+
+
+async def with_retry(make_call, tries: int = 3):
+    """Run an async Gemini call; on 'too many requests' wait and try again."""
+    delay = 8
+    for attempt in range(tries):
+        try:
+            return await make_call()
+        except Exception as e:  # noqa: BLE001
+            if attempt == tries - 1 or not is_rate_limit(e):
+                raise
+            log.warning("Gemini busy (%s). Waiting %ss and trying again.", str(e)[:80], delay)
+            await asyncio.sleep(delay)
+            delay *= 2
+
+
+def friendly(e: Exception) -> str:
+    t = str(e)
+    if "429" in t or "RESOURCE_EXHAUSTED" in t:
+        return ("Gemini's free usage limit was reached. Wait about a minute and try again. "
+                "Turning on billing for your Gemini key raises the limit.")
+    if "503" in t or "UNAVAILABLE" in t:
+        return "Gemini is busy right now. Please try again in a moment."
+    if "API key" in t or "PERMISSION_DENIED" in t or "401" in t or "403" in t:
+        return "Gemini rejected the API key. Check GEMINI_API_KEY in backend/.env."
+    return f"The AI request failed: {t[:200]}"
+
+
+async def generate(prompt: str, schema, use_cache: bool = True):
+    key = cache_key("json", schema.__name__, prompt)
+    if use_cache and (hit := cache_get(key)) is not None:
+        return schema.model_validate(hit)
+
+    async def call():
+        return await client().aio.models.generate_content(
+            model=MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=schema,
+                temperature=0.6,
+            ),
+        )
+    resp = await with_retry(call)
+    out = resp.parsed if resp.parsed is not None else schema.model_validate(json.loads(resp.text))
+    if use_cache:
+        cache_put(key, out.model_dump())
+    return out
 
 
 async def plan_trip(req: TripRequest) -> LLMItinerary:
@@ -95,7 +171,7 @@ Keep remaining places that still make sense; replace or drop the ones that do no
 Start with a place close to the current location.
 explanation: 1 to 2 short, friendly sentences telling the traveler what changed and why.
 {STOP_RULES}"""
-    return await generate(prompt, LLMReplan)
+    return await generate(prompt, LLMReplan, use_cache=False)
 
 
 async def swap_stop(req: SwapRequest, day: Day, idx: int) -> LLMSwap:
@@ -108,7 +184,7 @@ Traveler note: {req.note or "just show me something different"}.
 Interests: {", ".join(it.interests) or "a good mix"}. Budget: {it.budget}.
 Do not use any of these: {json.dumps([s.name for d in it.days for s in d.stops])}
 {STOP_RULES}"""
-    return await generate(prompt, LLMSwap)
+    return await generate(prompt, LLMSwap, use_cache=False)
 
 
 def _other_day_names(it: Itinerary, day_index: int) -> list[str]:

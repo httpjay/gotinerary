@@ -65,7 +65,7 @@ function Card({ c, state, onSet, onFocus, focused }) {
   );
 }
 
-export default function Discover({ disc, prefs, social, onBuild, building, focusId, setFocusId, extra, setExtra, choice, setChoice }) {
+export default function Discover({ disc, prefs, social, onRetrySocial, onBuild, building, focusId, setFocusId, extra, setExtra, choice, setChoice }) {
   const [missingBusy, setMissingBusy] = useState(false);
   const [missing, setMissing] = useState(null);
   const [q, setQ] = useState("");
@@ -135,7 +135,8 @@ export default function Discover({ disc, prefs, social, onBuild, building, focus
               <p className="muted-sm">{g.sub}</p>
               {social.status === "loading"
                 ? <div className="loading-inline"><div className="spinner" /> Searching recent articles about TikTok and Instagram spots...</div>
-                : <p className="hint">{social.note}</p>}
+                : <><p className="hint">{social.note}</p>
+                  {onRetrySocial && <button className="btn tiny" onClick={onRetrySocial}>↻ Try again</button>}</>}
             </section>
           );
         }
