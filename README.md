@@ -16,7 +16,7 @@ Built for the LA Hacks AI Hackathon 2026 (Applied Intelligence track).
 - **Demo mode:** works with no API key (sample Paris trip), and falls back safely if the AI fails.
 
 ## Tech stack
-- Frontend: React + Vite, Leaflet (OpenStreetMap / CARTO tiles), Open-Meteo weather API
+- Frontend: React + Vite, Leaflet (OpenStreetMap tiles), Open-Meteo weather API
 - Backend: Python FastAPI, Pydantic
 - AI: Google Gemini (`gemini-2.5-flash`) with structured JSON output
 

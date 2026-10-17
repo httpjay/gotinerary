@@ -36,8 +36,9 @@ export default function MapView({ day, center, focusId, onSelect, me }) {
   return (
     <MapContainer center={[center.lat, center.lng]} zoom={13} className="map" zoomControl={false}>
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
-        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        maxZoom={19}
       />
       <FitBounds points={points} focus={focus} />
       {done.length > 1 && <Polyline positions={done} pathOptions={{ color: "#9aa5b1", weight: 4, dashArray: "6 8" }} />}
