@@ -122,7 +122,7 @@ export default function App() {
   const center = trip?.disc ? { lat: trip.disc.center_lat, lng: trip.disc.center_lng } : { lat: 34.05, lng: -118.25 };
 
   return (
-    <div className="app">
+    <div className={`app${stage === "start" ? " solo" : ""}`}>
       <aside className="panel" ref={panelRef}>
         <header className="top">
           <Logo onClick={reset} />
@@ -178,12 +178,11 @@ export default function App() {
         )}
       </aside>
 
-      <main className="map-wrap">
+      {stage !== "start" && <main className="map-wrap">
         <MapView points={points} route={stage === "trip"} center={center} focusId={focusId} onSelect={setFocusId}
           me={me} hotel={stage === "trip" ? trip?.it?.hotel?.place : null} />
-        {stage === "start" && <div className="map-hint">Your trip will appear here 🗺️</div>}
         {stage === "discover" && <div className="map-legend"><span className="lg picked" /> Picked <span className="lg idle" /> Not picked <span className="lg skipped" /> Skipped</div>}
-      </main>
+      </main>}
     </div>
   );
 }

@@ -372,3 +372,26 @@ input, select { font: inherit; }
 .sources { margin: 0; font-size: 12px; color: var(--muted); }
 .sources a { color: #2f6fdb; }
 .loading-inline { display: flex; gap: 10px; align-items: center; font-size: 13px; color: var(--muted); margin-top: 8px; }
+
+/* Start screen: no map, centered form */
+.app.solo { grid-template-columns: 1fr; background: linear-gradient(160deg, #fff7f1 0%, #f6f7f9 45%, #eef4fb 100%); }
+.app.solo .panel { background: transparent; border-right: none; }
+.app.solo .top { background: rgba(255,255,255,.7); }
+.app.solo .top, .app.solo .hero, .app.solo > .panel > .error, .app.solo .loading-bar { max-width: 760px; margin-left: auto; margin-right: auto; width: 100%; }
+.app.solo .top { border-radius: 0 0 16px 16px; }
+.app.solo .hero { background: #fff; border-radius: 20px; margin-top: 24px; margin-bottom: 40px; padding: 32px 36px 36px; box-shadow: 0 10px 40px rgba(45,62,80,.08); }
+.app.solo .hero h1 { font-size: 40px; }
+@media (max-width: 860px) {
+  .app.solo { grid-template-rows: auto; }
+  .app.solo .panel { grid-row: 1; }
+  .app.solo .hero { margin: 12px; padding: 22px 16px; width: calc(100% - 24px); }
+  .app.solo .top { padding: 12px 14px; }
+  .modes .mode { font-size: 10.5px; padding: 4px 8px; white-space: nowrap; }
+  .logo { font-size: 19px; }
+  .step-dot { font-size: 12px; padding: 7px 6px; gap: 5px; }
+  .app.solo .hero h1 { font-size: 30px; }
+}
+
+.inline .btn { white-space: nowrap; }
+.panel { overflow-x: hidden; }
+.inline input { min-width: 0; }
