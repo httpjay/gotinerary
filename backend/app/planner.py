@@ -38,7 +38,7 @@ Rules for every stop:
 """
 
 
-async def _generate(prompt: str, schema):
+async def generate(prompt: str, schema):
     resp = await client().aio.models.generate_content(
         model=MODEL,
         contents=prompt,
@@ -65,7 +65,7 @@ summary: 1 to 2 sentences about the whole trip.
 center_lat / center_lng: the city center.
 tips: 3 short practical local tips (transport, money, etiquette).
 {STOP_RULES}"""
-    return await _generate(prompt, LLMItinerary)
+    return await generate(prompt, LLMItinerary)
 
 
 REASON_TEXT = {
@@ -95,7 +95,7 @@ Keep remaining places that still make sense; replace or drop the ones that do no
 Start with a place close to the current location.
 explanation: 1 to 2 short, friendly sentences telling the traveler what changed and why.
 {STOP_RULES}"""
-    return await _generate(prompt, LLMReplan)
+    return await generate(prompt, LLMReplan)
 
 
 async def swap_stop(req: SwapRequest, day: Day, idx: int) -> LLMSwap:
@@ -108,8 +108,11 @@ Traveler note: {req.note or "just show me something different"}.
 Interests: {", ".join(it.interests) or "a good mix"}. Budget: {it.budget}.
 Do not use any of these: {json.dumps([s.name for d in it.days for s in d.stops])}
 {STOP_RULES}"""
-    return await _generate(prompt, LLMSwap)
+    return await generate(prompt, LLMSwap)
 
 
 def _other_day_names(it: Itinerary, day_index: int) -> list[str]:
     return [s.name for i, d in enumerate(it.days) if i != day_index for s in d.stops]
+
+
+_generate = generate

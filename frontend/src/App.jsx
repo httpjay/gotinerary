@@ -1,311 +1,174 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import "./App.css";
-import TripForm from "./TripForm";
+import Onboarding from "./Onboarding";
+import Discover from "./Discover";
+import Trip from "./Trip";
 import MapView from "./MapView";
 import {
-  api, CATEGORY_ICON, REASONS, bookLink, downloadICS, fetchWeather,
-  fmtDate, fmtTime, mapsLink, nowHHMM, toMin,
+  CATEGORY_ICON, api, deleteTrip, deriveBookings, fetchWeather, fmtDate, fmtTime, loadTrips, saveTrip,
 } from "./lib";
 
-const LOADING_LINES = [
-  "Finding the best places...",
-  "Checking what's close together...",
-  "Building your timetable...",
-  "Adding lunch and dinner spots...",
-];
+const LOADING = {
+  discover: ["Reading your inspiration...", "Finding famous sights...", "Looking for hidden gems...", "Checking every place with Google..."],
+  build: ["Grouping places by area...", "Checking opening hours for each date...", "Finding restaurants for your diet...", "Building a timetable that works..."],
+};
 
-function Logo() {
+function Logo({ onClick }) {
   return (
-    <div className="logo">
-      <span className="logo-pin">📍</span>
-      <span className="go">GO</span><span className="tin">TINERARY</span>
-    </div>
+    <button className="logo" onClick={onClick}>
+      <span className="logo-pin">📍</span><span className="go">GO</span><span className="tin">TINERARY</span>
+    </button>
   );
 }
 
-function Leg({ stop }) {
-  if (!stop.travel_min) return null;
-  const walk = stop.travel_mode === "walk";
-  return (
-    <div className="leg">
-      <span>{walk ? "🚶" : "🚇"}</span>
-      {stop.travel_min} min {walk ? "walk" : "by metro, bus or taxi"} · {stop.distance_km} km
-    </div>
-  );
-}
-
-function FreeTime({ prev, stop }) {
-  if (!prev || !stop.start_time || !prev.end_time) return null;
-  const gap = toMin(stop.start_time) - toMin(prev.end_time) - stop.travel_min;
-  if (gap < 20) return null;
-  const h = Math.floor(gap / 60), m = gap % 60;
-  return <div className="free">☕ Free time · {h ? `${h} h ` : ""}{m ? `${m} min` : ""}</div>;
-}
-
-function StopCard({ stop, n, city, active, onSelect, onSwap, swapping }) {
-  return (
-    <div className={`stop ${stop.status}${active ? " active" : ""}`} onClick={() => onSelect(stop.id)}>
-      <div className={`num num-${stop.status}`}>{stop.status === "done" ? "✓" : n}</div>
-      <div className="stop-body">
-        <div className="stop-top">
-          <span className="time">{fmtTime(stop.start_time)} to {fmtTime(stop.end_time)}</span>
-          {stop.status === "new" && <span className="badge new">NEW</span>}
-          <span className={`badge ${stop.indoor ? "in" : "out"}`}>{stop.indoor ? "Indoor" : "Outdoor"}</span>
-        </div>
-        <h4>{CATEGORY_ICON[stop.category] || "📍"} {stop.name}</h4>
-        <p className="desc">{stop.description}</p>
-        {stop.why && stop.why !== stop.description && <p className="why">💡 {stop.why}</p>}
-        <div className="stop-foot">
-          <span className="cost">{stop.est_cost_usd ? `~$${stop.est_cost_usd}` : "Free"}</span>
-          <div className="actions" onClick={(e) => e.stopPropagation()}>
-            {stop.status !== "done" && (
-              <button className="btn tiny" disabled={swapping} onClick={() => onSwap(stop.id)}>
-                {swapping ? "..." : "🔄 Swap"}
-              </button>
-            )}
-            <a className="btn tiny" href={mapsLink(stop, city)} target="_blank" rel="noreferrer">🧭 Directions</a>
-            <a className="btn tiny" href={bookLink(stop, city)} target="_blank" rel="noreferrer">
-              {stop.category === "food" || stop.category === "cafe" ? "📅 Reserve" : "🎟️ Tickets"}
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ReplanPanel({ onReplan, busy, isToday }) {
-  const [open, setOpen] = useState(false);
-  const [time, setTime] = useState(isToday ? nowHHMM() : "13:30");
-  const [note, setNote] = useState("");
-  const [useGps, setUseGps] = useState(false);
-  const [reason, setReason] = useState(null);
-
-  const go = (r) => {
-    setReason(r);
-    if (r === "custom" && !note.trim()) return;
-    onReplan({ reason: r, current_time: time, note, useGps });
-  };
-
-  if (!open) {
-    return (
-      <button className="replan-cta" onClick={() => setOpen(true)}>
-        <span className="pulse" /> Plans changed? <strong>Re-plan my day</strong>
-      </button>
-    );
-  }
-  return (
-    <div className="replan">
-      <div className="replan-head">
-        <strong>⚡ Re-plan the rest of today</strong>
-        <button className="x" onClick={() => setOpen(false)}>✕</button>
-      </div>
-      <div className="replan-row">
-        <label>Time now
-          <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
-        </label>
-        <label className="gps">
-          <input type="checkbox" checked={useGps} onChange={(e) => setUseGps(e.target.checked)} />
-          Use my location
-        </label>
-      </div>
-      <div className="reasons">
-        {REASONS.map((r) => (
-          <button key={r.id} disabled={busy} className={`reason${reason === r.id ? " on" : ""}`} onClick={() => go(r.id)}>
-            <span>{r.icon}</span>{r.label}
-          </button>
-        ))}
-      </div>
-      {reason === "custom" && (
-        <div className="custom">
-          <input autoFocus value={note} placeholder="e.g. I want to see a sunset spot"
-            onChange={(e) => setNote(e.target.value)} onKeyDown={(e) => e.key === "Enter" && go("custom")} />
-          <button className="btn primary" disabled={busy || !note.trim()} onClick={() => go("custom")}>Go</button>
-        </div>
-      )}
-      {busy && <div className="thinking">Rebuilding your day...</div>}
-    </div>
-  );
-}
+const newId = () => Math.random().toString(36).slice(2, 10);
 
 export default function App() {
-  const [mode, setMode] = useState("ai");
-  const [it, setIt] = useState(null);
-  const [dayIdx, setDayIdx] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [health, setHealth] = useState(null);
+  const [stage, setStage] = useState("start"); // start | discover | trip
+  const [trip, setTrip] = useState(null); // { id, prefs, disc, extra, choice, it, bookings }
+  const [loading, setLoading] = useState(null);
   const [line, setLine] = useState(0);
   const [error, setError] = useState("");
   const [focusId, setFocusId] = useState(null);
+  const [dayIdx, setDayIdx] = useState(0);
+  const [tab, setTab] = useState("plan");
   const [weather, setWeather] = useState({});
-  const [busy, setBusy] = useState(false);
-  const [swapping, setSwapping] = useState(null);
-  const [change, setChange] = useState(null); // { explanation, removed, added, prev }
   const [me, setMe] = useState(null);
+  const [saved, setSaved] = useState(loadTrips());
+  const panelRef = useRef(null);
+  useEffect(() => { panelRef.current?.scrollTo(0, 0); }, [stage, tab]);
 
-  useEffect(() => { api.health().then((h) => setMode(h.mode)).catch(() => {}); }, []);
+  useEffect(() => { api.health().then(setHealth).catch(() => setHealth({ mode: "demo", places: false })); }, []);
   useEffect(() => {
     if (!loading) return;
-    const t = setInterval(() => setLine((l) => (l + 1) % LOADING_LINES.length), 1600);
+    setLine(0);
+    const t = setInterval(() => setLine((l) => (l + 1) % LOADING[loading].length), 1800);
     return () => clearInterval(t);
   }, [loading]);
+  // Save the trip in this browser whenever it changes.
+  useEffect(() => { if (trip?.it) { saveTrip(trip); setSaved(loadTrips()); } }, [trip]);
+  useEffect(() => {
+    if (!trip?.it) return;
+    fetchWeather(trip.it.center_lat, trip.it.center_lng, trip.it.start_date, trip.it.days.length)
+      .then(setWeather).catch(() => setWeather({}));
+  }, [trip?.it?.start_date, trip?.it?.center_lat]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const day = it?.days[dayIdx];
-  const center = useMemo(() => (it ? { lat: it.center_lat, lng: it.center_lng } : { lat: 34.05, lng: -118.25 }), [it]);
-  const total = it ? it.days.reduce((a, d) => a + d.stops.reduce((b, s) => b + s.est_cost_usd, 0), 0) : 0;
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const patch = (p) => setTrip((t) => ({ ...t, ...p }));
+  const setIt = (it) => setTrip((t) => ({ ...t, it, bookings: deriveBookings(it, t.bookings) }));
 
-  async function plan(form) {
-    setLoading(true); setError(""); setChange(null);
+  async function discover(prefs) {
+    setLoading("discover"); setError("");
     try {
-      const res = await api.plan(form);
-      setIt(res); setDayIdx(0); setFocusId(null);
-      fetchWeather(res.center_lat, res.center_lng, res.start_date, res.days.length)
-        .then(setWeather).catch(() => setWeather({}));
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
+      const disc = await api.discover(prefs);
+      const choice = Object.fromEntries(disc.candidates.filter((c) => c.group === "video").map((c) => [c.id, "save"]));
+      setTrip({ id: newId(), prefs, disc, extra: [], choice, it: null, bookings: [] });
+      setStage("discover"); setFocusId(null);
+    } catch (e) { setError(e.message); } finally { setLoading(null); }
   }
 
-  async function getGps() {
-    return new Promise((resolve) => {
-      if (!navigator.geolocation) return resolve(null);
-      navigator.geolocation.getCurrentPosition(
-        (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
-        () => resolve(null), { timeout: 6000 });
-    });
+  async function build(selected) {
+    setLoading("build"); setError("");
+    try {
+      const d = trip.disc;
+      const it = await api.build({ prefs: trip.prefs, destination: d.destination, country: d.country,
+        airport_code: d.airport_code, center_lat: d.center_lat, center_lng: d.center_lng,
+        summary: d.summary, tips: d.tips, selected, hotel: trip.it?.hotel || null });
+      setTrip((t) => ({ ...t, it, bookings: deriveBookings(it, t.bookings) }));
+      setStage("trip"); setDayIdx(0); setTab("plan"); setFocusId(null);
+    } catch (e) { setError(e.message); } finally { setLoading(null); }
   }
 
-  async function replan({ reason, current_time, note, useGps }) {
-    setBusy(true); setError("");
-    try {
-      const pos = useGps ? await getGps() : null;
-      setMe(pos);
-      const res = await api.replan({
-        itinerary: it, day_index: dayIdx, current_time, reason, note,
-        current_lat: pos?.lat ?? null, current_lng: pos?.lng ?? null,
+  function openSaved(t) {
+    setTrip(t); setStage(t.it ? "trip" : "discover"); setDayIdx(0); setTab("plan"); setError("");
+  }
+
+  const reset = () => { setStage("start"); setTrip(null); setError(""); setMe(null); setWeather({}); };
+
+  // ----- Map points for the current screen -----
+  const day = stage === "trip" && trip?.it ? trip.it.days[Math.min(dayIdx, trip.it.days.length - 1)] : null;
+  const points = useMemo(() => {
+    if (stage === "discover" && trip) {
+      const all = [...trip.disc.candidates, ...trip.extra];
+      return all.map((c) => {
+        const st = trip.choice[c.id];
+        return { id: c.id, lat: c.lat, lng: c.lng, label: CATEGORY_ICON[c.category] || "📍",
+          status: st === "must" || st === "save" ? "picked" : st === "skip" ? "skipped" : "idle",
+          title: c.name, sub: c.verified ? "✓ Verified" : "AI estimate" };
       });
-      const prev = it;
-      setIt({ ...it, days: it.days.map((d, i) => (i === dayIdx ? res.day : d)) });
-      setChange({ explanation: res.explanation, removed: res.removed, added: res.added, prev });
-      setFocusId(null);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setBusy(false);
     }
-  }
-
-  async function swap(stopId) {
-    setSwapping(stopId); setError("");
-    try {
-      const res = await api.swap({ itinerary: it, day_index: dayIdx, stop_id: stopId });
-      const prev = it;
-      setIt({ ...it, days: it.days.map((d, i) => (i === dayIdx ? res.day : d)) });
-      setChange({ explanation: `Swapped ${res.old_name} for ${res.new_name}.`, removed: [res.old_name], added: [res.new_name], prev });
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setSwapping(null);
+    if (day) {
+      return day.stops.map((s, i) => ({ id: s.id, lat: s.lat, lng: s.lng, label: s.kind === "meal" ? "🍽" : i + 1,
+        status: s.status === "upcoming" && s.kind === "meal" ? "meal" : s.status,
+        title: s.name, sub: `${fmtTime(s.start_time)} to ${fmtTime(s.end_time)}` }));
     }
-  }
+    return [];
+  }, [stage, trip, day]);
+  const center = trip?.disc ? { lat: trip.disc.center_lat, lng: trip.disc.center_lng } : { lat: 34.05, lng: -118.25 };
 
   return (
     <div className="app">
-      <aside className="panel">
+      <aside className="panel" ref={panelRef}>
         <header className="top">
-          <Logo />
-          <span className={`mode ${mode}`}>{mode === "ai" ? "✨ AI by Gemini" : "🧪 Demo mode"}</span>
+          <Logo onClick={reset} />
+          <div className="modes">
+            <span className={`mode ${health?.mode || "demo"}`}>{health?.mode === "ai" ? "✨ Gemini" : "🧪 Demo"}</span>
+            <span className={`mode ${health?.places ? "ai" : "demo"}`}>{health?.places ? "✓ Google Places" : "No places key"}</span>
+          </div>
         </header>
 
-        {!it && (
+        {error && <div className="error">⚠️ {error}</div>}
+        {loading && <div className="loading-bar"><div className="spinner" />{LOADING[loading][line]}</div>}
+
+        {stage === "start" && (
           <section className="hero">
-            <h1>All your travel,<br /><span>streamlined.</span></h1>
-            <p>People spend <strong>17 hours and 42 minutes</strong> planning one trip.
-              GoTinerary does it in seconds, and fixes your plan <em>during</em> the trip when things change.</p>
-            <TripForm onSubmit={plan} loading={loading} mode={mode} />
-            {loading && <div className="loading"><div className="spinner" />{LOADING_LINES[line]}</div>}
+            <h1>Saw it on TikTok?<br /><span>Let's make it a real trip.</span></h1>
+            <p>People spend <strong>17 hours and 42 minutes</strong> planning one trip. GoTinerary turns a video or an idea into a
+              day-by-day plan with places <strong>checked against Google</strong>, real opening hours, food for your diet, and a list of what to book.</p>
+            <Onboarding onDone={discover} loading={loading === "discover"} health={health} />
+            {saved.length > 0 && (
+              <div className="saved">
+                <h4>Your saved trips <em>(this browser)</em></h4>
+                {saved.map((t) => (
+                  <div key={t.id} className="saved-row">
+                    <button className="linkish" onClick={() => openSaved(t)}>
+                      📍 {t.it?.destination || t.disc?.destination} · {fmtDate(t.prefs.start_date)}
+                    </button>
+                    <button className="x" title="Delete" onClick={() => { deleteTrip(t.id); setSaved(loadTrips()); }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
         )}
 
-        {error && <div className="error">⚠️ {error}</div>}
-
-        {it && (
-          <section className="trip">
-            <div className="trip-head">
-              <div>
-                <h2>{it.destination}</h2>
-                <p className="muted">{fmtDate(it.start_date)} · {it.days.length} {it.days.length === 1 ? "day" : "days"} · about ${total} per person</p>
-              </div>
-              <div className="trip-actions">
-                <button className="btn" onClick={() => downloadICS(it)}>📅 Add to calendar</button>
-                <button className="btn ghost" onClick={() => { setIt(null); setChange(null); setMe(null); }}>New trip</button>
-              </div>
+        {stage === "discover" && trip && (
+          <>
+            <div className="backrow">
+              <button className="btn ghost" onClick={reset}>← Start over</button>
+              {trip.it && <button className="btn ghost" onClick={() => setStage("trip")}>Back to my plan →</button>}
             </div>
-            <p className="summary">{it.summary}</p>
+            <Discover disc={trip.disc} prefs={trip.prefs} onBuild={build} building={loading === "build"}
+              focusId={focusId} setFocusId={setFocusId}
+              extra={trip.extra} setExtra={(f) => setTrip((t) => ({ ...t, extra: typeof f === "function" ? f(t.extra) : f }))}
+              choice={trip.choice} setChoice={(f) => setTrip((t) => ({ ...t, choice: typeof f === "function" ? f(t.choice) : f }))} />
+          </>
+        )}
 
-            <div className="tabs">
-              {it.days.map((d, i) => {
-                const w = weather[d.date];
-                return (
-                  <button key={d.day} className={`tab${i === dayIdx ? " on" : ""}`}
-                    onClick={() => { setDayIdx(i); setFocusId(null); setChange(null); }}>
-                    <span className="tab-day">Day {d.day}</span>
-                    <span className="tab-date">{fmtDate(d.date)}</span>
-                    {w && <span className="tab-w">{w.icon} {w.max}°</span>}
-                  </button>
-                );
-              })}
-            </div>
-
-            {day && (
-              <>
-                <h3 className="theme">{day.theme}</h3>
-                {weather[day.date] && weather[day.date].rain >= 50 && (
-                  <div className="nudge">🌧️ {weather[day.date].rain}% chance of rain on this day. If it rains, tap <strong>Re-plan my day</strong> for indoor options.</div>
-                )}
-
-                <ReplanPanel onReplan={replan} busy={busy} isToday={day.date === todayIso} />
-
-                {change && (
-                  <div className="change">
-                    <p>🤖 {change.explanation}</p>
-                    <div className="diff">
-                      {change.removed.map((n) => <span key={`r-${n}`} className="rm">− {n}</span>)}
-                      {change.added.map((n) => <span key={`a-${n}`} className="add">+ {n}</span>)}
-                    </div>
-                    <button className="btn tiny" onClick={() => { setIt(change.prev); setChange(null); }}>↩ Undo</button>
-                  </div>
-                )}
-
-                <div className="timeline">
-                  {day.stops.map((s, i) => (
-                    <div key={s.id}>
-                      <FreeTime prev={day.stops[i - 1]} stop={s} />
-                      <Leg stop={s} />
-                      <StopCard stop={s} n={i + 1} city={it.destination} active={focusId === s.id}
-                        onSelect={setFocusId} onSwap={swap} swapping={swapping === s.id} />
-                    </div>
-                  ))}
-                </div>
-
-                {it.tips?.length > 0 && (
-                  <div className="tips">
-                    <h4>Local tips</h4>
-                    <ul>{it.tips.map((t) => <li key={t}>{t}</li>)}</ul>
-                  </div>
-                )}
-              </>
-            )}
-          </section>
+        {stage === "trip" && trip?.it && (
+          <Trip it={trip.it} setIt={setIt} bookings={trip.bookings} setBookings={(b) => patch({ bookings: b })}
+            dayIdx={Math.min(dayIdx, trip.it.days.length - 1)} setDayIdx={setDayIdx} weather={weather}
+            focusId={focusId} setFocusId={setFocusId} setMe={setMe} setError={setError}
+            tab={tab} setTab={setTab} onBack={() => setStage("discover")} onNew={reset} />
         )}
       </aside>
 
       <main className="map-wrap">
-        <MapView day={day} center={center} focusId={focusId} onSelect={setFocusId} me={me} />
-        {!it && <div className="map-hint">Your trip will appear here 🗺️</div>}
+        <MapView points={points} route={stage === "trip"} center={center} focusId={focusId} onSelect={setFocusId}
+          me={me} hotel={stage === "trip" ? trip?.it?.hotel?.place : null} />
+        {stage === "start" && <div className="map-hint">Your trip will appear here 🗺️</div>}
+        {stage === "discover" && <div className="map-legend"><span className="lg picked" /> Picked <span className="lg idle" /> Not picked <span className="lg skipped" /> Skipped</div>}
       </main>
     </div>
   );

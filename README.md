@@ -1,43 +1,50 @@
 # GoTinerary ✈️📍
 
-**All your travel, streamlined.** An AI trip planner that builds a day-by-day plan in seconds, and **re-plans your day live during the trip** when things change (rain, tired, running late, a place is closed, hungry).
+**Saw it on TikTok? Let's make it a real trip.** GoTinerary turns a video or an idea into a realistic, day-by-day plan: places **checked against Google**, real opening hours, restaurants for your diet, a route that doesn't zigzag, and a clear list of what still needs booking. During the trip, one tap **re-plans the rest of your day** when it rains, you're tired, or a place is closed.
 
-Built for the LA Hacks AI Hackathon 2026 (Applied Intelligence track).
+Built solo for the LA Hacks AI Hackathon 2026 (Applied Intelligence track). Based on an idea first pitched with my team at the LMU BEST Entrepreneurship Bootcamp; rebuilt from scratch for this hackathon.
 
-## Features
-- **Plan a trip:** city, dates, budget, pace and interests → a full day-by-day plan with real places, lunch and dinner.
-- **Real timetable:** the AI picks the places; our scheduler calculates travel time (walk or transit) between stops and builds times that actually add up.
-- **Re-plan my day:** one tap rebuilds the rest of today from the current time and location. Shows what was removed and added, with Undo.
-- **Swap a stop** for a similar place nearby.
-- **Map** with numbered stops and route (done stops in grey, new stops in orange).
-- **Weather forecast** per day, with a rain warning.
-- **Directions, tickets and reservation links** for each stop.
-- **Export to calendar** (.ics file).
-- **Demo mode:** works with no API key (sample Paris trip), and falls back safely if the AI fails.
+## The journey
+1. **Onboarding (3 short steps):** destination *or* a TikTok/YouTube link plus what you saw → dates, travelers, budget → pace, interests, day hours, diet, allergies, stay type, must-sees.
+2. **Discovery:** three groups: *From your video*, *Must-see landmarks*, *Hidden gems*. Each card shows a **✓ Verified · Google** or **⚠ AI estimate** badge, rating and review count (with source), photo, hours, visit length, cost estimate, ticket hint, distance. Add / Must-do / Skip / add your own place. **"What might I be missing?"** suggests nearby places without forcing them in.
+3. **Itinerary engine (rule-based):** groups places into days by area, respects must-dos, **never schedules a place on a day it's closed**, fits visits inside opening hours, adds travel time + delay buffers, orders the route (nearest-neighbor + 2-opt), and adds lunch and dinner from real nearby restaurants that fit the diet. Anything that can't fit is listed with a reason.
+4. **Edit:** reorder, remove, optimize a day, swap a place or restaurant; only that day is rebuilt. **Re-plan my day** for live changes.
+5. **Stay & flights:** well-rated stays near the middle of your plan, with prefilled Booking.com / Expedia / Google Hotels links. Choosing a stay re-times every day from the hotel. Prefilled Google Flights / Kayak / Expedia searches.
+6. **Bookings dashboard:** flight, stay, tickets and dinner reservations with statuses (Suggested → Selected → Awaiting → In progress → Confirmed / Cancelled), booking references, estimated vs confirmed costs, warnings. Export to calendar or copy as text. Trips are saved in the browser.
 
-## Tech stack
-- Frontend: React + Vite, Leaflet (OpenStreetMap tiles), Open-Meteo weather API
-- Backend: Python FastAPI, Pydantic
-- AI: Google Gemini (`gemini-3.8-flash`) with structured JSON output
+## Honesty rules (by design)
+- The AI only suggests ideas and explanations. **Names, locations, ratings, review counts and opening hours come from Google Places**, never from the AI.
+- Unverified items are clearly marked **AI estimate**; travel times and costs are marked **est.**
+- We **don't show flight or hotel prices** we can't verify; we link to real provider searches instead.
+- We **never book or pay**. Users mark bookings as confirmed themselves.
+- Allergies: we always say "confirm with the restaurant"; we never guarantee allergen safety.
 
-## How it works
-1. Gemini returns places as strict JSON (name, coordinates, visit length, cost, indoor/outdoor).
-2. The backend scheduler uses the Haversine distance × 1.3 street factor to estimate travel (walk up to 1.5 km, otherwise transit), assigns start and end times, and moves dinner to dinner time.
-3. For re-planning, stops already finished stay locked. Only the rest of the day is rebuilt, starting from where the traveler is now.
+## Tech
+- **Frontend:** React + Vite, Leaflet + OpenStreetMap, Open-Meteo weather
+- **Backend:** Python FastAPI, Pydantic
+- **AI:** Google Gemini (`gemini-3.8-flash`), structured JSON output
+- **Place data:** Google Places API (New): Text Search + Place Photos, behind a small provider interface (`backend/app/providers/places.py`) with caching and retries
+- **Social links:** TikTok / YouTube public oEmbed (caption + creator). Other links → user describes what they saw.
+- **Rule-based modules:** `hours.py` (opening hours per date), `scheduling.py` (travel, buffers, timetable, route optimizer), `engine.py` (day grouping, meals, conflicts, hotels)
 
 ## Run it
 ```bash
-# 1. Backend
+# Backend
 cd backend
 pip install -r requirements.txt
-cp .env.example .env        # paste your Gemini key into .env
+cp .env.example .env     # add GEMINI_API_KEY and GOOGLE_MAPS_API_KEY
 uvicorn app.main:app --reload --port 8000
 
-# 2. Frontend (new terminal)
+# Frontend (new terminal)
 cd frontend
 npm install
-npm run dev                 # open http://localhost:5173
+npm run dev              # open http://localhost:5173
 ```
-Get a free Gemini key at https://aistudio.google.com/apikey. Without a key the app runs in demo mode.
+- **Google Maps key:** enable **Places API (New)** in Google Cloud. Without it, places are AI estimates (clearly labeled).
+- **No Gemini key:** demo mode with sample Paris data.
 
-**One server option:** run `npm run build` in `frontend`, then just start the backend and open http://localhost:8000.
+## Tests
+`cd backend && python tests/test_flow.py`: full journey with fake Google and Gemini data (closed-on-Monday museum, unverified place, diet, allergies, edits, hotel change).
+
+## Not built yet (next steps)
+Live flight and hotel prices (need provider access), assisted booking, Yelp reviews, Google Routes API for exact transit times, user accounts, multi-city trips.

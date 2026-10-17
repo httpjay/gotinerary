@@ -1,11 +1,14 @@
 """Data models for GoTinerary.
 
-Two groups:
-- LLM* models: the exact JSON shape we ask Gemini to return (kept simple, no defaults).
-- API models: what the frontend sends and receives (includes computed times and travel legs).
+- LLM* models: the exact JSON shape we ask Gemini to return.
+- API models: what the frontend sends and receives.
+Facts like rating, hours and address live in `PlaceInfo` (from Google), never
+in LLM output.
 """
 from typing import Literal, Optional
 from pydantic import BaseModel, Field
+
+from .providers.places import PlaceInfo
 
 
 # ---------- Shapes we ask the AI model to return ----------
@@ -14,7 +17,7 @@ class LLMStop(BaseModel):
     name: str
     category: str  # sight, museum, food, cafe, park, shopping, nightlife, experience
     description: str
-    why: str  # one line: why this fits the traveler's interests
+    why: str
     lat: float
     lng: float
     duration_min: int
@@ -44,21 +47,93 @@ class LLMSwap(BaseModel):
     stop: LLMStop
 
 
+class LLMIdea(BaseModel):
+    name: str
+    group: str        # video, landmark, gem
+    area: str         # neighborhood
+    category: str
+    why: str
+    duration_min: int
+    est_cost_usd: int
+    indoor: bool
+    needs_ticket: bool
+    lat: float
+    lng: float
+
+
+class LLMDiscovery(BaseModel):
+    destination_city: str
+    country: str
+    airport_code: str
+    center_lat: float
+    center_lng: float
+    summary: str
+    ideas: list[LLMIdea]
+    tips: list[str]
+
+
+class LLMMissing(BaseModel):
+    ideas: list[LLMIdea]
+
+
 # ---------- API shapes ----------
 
 Budget = Literal["low", "medium", "high"]
 Pace = Literal["relaxed", "balanced", "packed"]
 Reason = Literal["rain", "tired", "late", "closed", "hungry", "custom"]
+BookStatus = Literal["suggested", "selected", "awaiting", "in_progress", "confirmed", "cancelled"]
 
 
 class TripRequest(BaseModel):
     destination: str = Field(min_length=2, max_length=80)
-    start_date: str  # YYYY-MM-DD
+    start_date: str
     days: int = Field(ge=1, le=5)
     budget: Budget = "medium"
     pace: Pace = "balanced"
     interests: list[str] = []
     must_see: str = ""
+
+
+class TripPrefs(BaseModel):
+    destination: str = ""
+    inspiration: str = ""          # what they saw / caption text
+    inspiration_url: str = ""
+    origin: str = ""               # departure city or airport
+    start_date: str
+    end_date: str
+    flexible_dates: bool = False
+    travelers: int = Field(default=1, ge=1, le=12)
+    budget: Budget = "medium"
+    budget_total: Optional[int] = None
+    budget_includes_flights: bool = False
+    pace: Pace = "balanced"
+    interests: list[str] = []
+    day_start: str = "09:00"
+    day_end: str = "21:30"
+    lodging: str = "hotel"
+    diet: str = "none"             # none, vegetarian, vegan, pescatarian, halal, kosher, gluten-free
+    allergies: str = ""
+    accessibility: str = ""
+    must_see: str = ""
+
+
+class Candidate(BaseModel):
+    id: str
+    name: str
+    group: str                     # video, landmark, gem, missing, custom
+    area: str = ""
+    category: str
+    why: str
+    duration_min: int
+    est_cost_usd: int
+    indoor: bool
+    needs_ticket: bool = False
+    lat: float
+    lng: float
+    verified: bool = False
+    place: Optional[PlaceInfo] = None
+    priority: Literal["normal", "must"] = "normal"
+    distance_km: Optional[float] = None   # from the city center
 
 
 class Stop(BaseModel):
@@ -78,6 +153,15 @@ class Stop(BaseModel):
     distance_km: float = 0.0
     travel_mode: str = ""
     status: Literal["done", "upcoming", "new"] = "upcoming"
+    # Verification and planning details
+    kind: Literal["visit", "meal"] = "visit"
+    meal: str = ""                 # "lunch" or "dinner" for meals
+    verified: bool = False
+    place: Optional[PlaceInfo] = None
+    needs_ticket: bool = False
+    hours_today: str = ""
+    warnings: list[str] = []
+    wait_min: int = 0
 
 
 class Day(BaseModel):
@@ -85,6 +169,30 @@ class Day(BaseModel):
     date: str
     theme: str
     stops: list[Stop]
+
+
+class Unscheduled(BaseModel):
+    name: str
+    reason: str
+    candidate_id: str = ""
+
+
+class Hotel(BaseModel):
+    place: PlaceInfo
+    avg_km_to_stops: float
+    links: dict[str, str]
+
+
+class Booking(BaseModel):
+    id: str
+    kind: Literal["flight", "hotel", "ticket", "restaurant"]
+    title: str
+    detail: str = ""
+    status: BookStatus = "suggested"
+    est_cost_usd: Optional[int] = None
+    confirmed_cost_usd: Optional[int] = None
+    reference: str = ""
+    link: str = ""
 
 
 class Itinerary(BaseModel):
@@ -99,12 +207,21 @@ class Itinerary(BaseModel):
     days: list[Day]
     tips: list[str]
     mode: Literal["ai", "demo"]
+    # New planning fields (all optional so older trips still load)
+    prefs: Optional[TripPrefs] = None
+    country: str = ""
+    airport_code: str = ""
+    unscheduled: list[Unscheduled] = []
+    warnings: list[str] = []
+    assumptions: list[str] = []
+    hotel: Optional[Hotel] = None
+    verified_source: str = ""
 
 
 class ReplanRequest(BaseModel):
     itinerary: Itinerary
     day_index: int
-    current_time: str  # HH:MM
+    current_time: str
     reason: Reason
     note: str = ""
     current_lat: Optional[float] = None
@@ -131,3 +248,67 @@ class SwapResponse(BaseModel):
     old_name: str
     new_name: str
     mode: Literal["ai", "demo"]
+
+
+class DiscoverResponse(BaseModel):
+    destination: str
+    country: str
+    airport_code: str
+    center_lat: float
+    center_lng: float
+    summary: str
+    tips: list[str]
+    candidates: list[Candidate]
+    assumptions: list[str]
+    mode: Literal["ai", "demo"]
+    verified_source: str
+
+
+class MissingRequest(BaseModel):
+    prefs: TripPrefs
+    destination: str
+    center_lat: float
+    center_lng: float
+    selected: list[Candidate]
+    rejected: list[str] = []
+
+
+class SearchRequest(BaseModel):
+    query: str
+    destination: str
+    center_lat: float
+    center_lng: float
+
+
+class BuildRequest(BaseModel):
+    prefs: TripPrefs
+    destination: str
+    country: str = ""
+    airport_code: str = ""
+    center_lat: float
+    center_lng: float
+    summary: str = ""
+    tips: list[str] = []
+    selected: list[Candidate]
+    hotel: Optional[Hotel] = None
+
+
+class DayEditRequest(BaseModel):
+    itinerary: Itinerary
+    day_index: int
+    stop_ids: list[str]            # new order; stops left out are removed
+    optimize: bool = False
+
+
+class DayEditResponse(BaseModel):
+    day: Day
+    unscheduled: list[Unscheduled]
+
+
+class HotelRequest(BaseModel):
+    itinerary: Itinerary
+
+
+class SetHotelRequest(BaseModel):
+    itinerary: Itinerary
+    hotel: Optional[Hotel] = None
