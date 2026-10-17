@@ -395,3 +395,6 @@ input, select { font: inherit; }
 .inline .btn { white-space: nowrap; }
 .panel { overflow-x: hidden; }
 .inline input { min-width: 0; }
+.popular { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: -6px; }
+.popular .muted-sm { margin-right: 2px; }
+.chip.city { padding: 5px 11px; font-size: 12.5px; }

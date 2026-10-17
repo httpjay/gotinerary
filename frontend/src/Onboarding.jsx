@@ -25,6 +25,12 @@ export const Chips = ({ options, value, onChange, multi }) => (
 
 const STEPS = ["Where", "When & who", "Your style"];
 
+const POPULAR = [
+  ["🇯🇵", "Tokyo"], ["🇯🇵", "Kyoto"], ["🇫🇷", "Paris"], ["🇬🇧", "London"], ["🇺🇸", "New York"],
+  ["🇮🇹", "Rome"], ["🇪🇸", "Barcelona"], ["🇰🇷", "Seoul"], ["🇮🇩", "Bali"], ["🇦🇪", "Dubai"],
+  ["🇹🇷", "Istanbul"], ["🇲🇽", "Mexico City"], ["🇹🇭", "Bangkok"], ["🇵🇹", "Lisbon"],
+];
+
 export default function Onboarding({ onDone, loading, health }) {
   const start = tomorrow();
   const [step, setStep] = useState(0);
@@ -97,6 +103,15 @@ export default function Onboarding({ onDone, loading, health }) {
             <input autoFocus value={p.destination} placeholder="Kyoto, Lisbon, Mexico City... (or leave empty)"
               onChange={(e) => set("destination")(e.target.value)} />
           </label>
+          <div className="popular">
+            <span className="muted-sm">Popular:</span>
+            {POPULAR.map(([flag, city]) => (
+              <button type="button" key={city} className={`chip city${p.destination === city ? " on" : ""}`}
+                onClick={() => set("destination")(p.destination === city ? "" : city)}>
+                {flag} {city}
+              </button>
+            ))}
+          </div>
           <div className="reelbox">
             <div className="reel-title">📱 Inspired by TikTok or Instagram reels? <em>(optional)</em></div>
             <div className="inline">
