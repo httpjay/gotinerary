@@ -18,7 +18,7 @@ Built for the LA Hacks AI Hackathon 2026 (Applied Intelligence track).
 ## Tech stack
 - Frontend: React + Vite, Leaflet (OpenStreetMap tiles), Open-Meteo weather API
 - Backend: Python FastAPI, Pydantic
-- AI: Google Gemini (`gemini-2.5-flash`) with structured JSON output
+- AI: Google Gemini (`gemini-3.8-flash`) with structured JSON output
 
 ## How it works
 1. Gemini returns places as strict JSON (name, coordinates, visit length, cost, indoor/outdoor).

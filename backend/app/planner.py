@@ -8,7 +8,7 @@ from google.genai import types
 from .models import (Itinerary, LLMItinerary, LLMReplan, LLMSwap, Day,
                      ReplanRequest, SwapRequest, TripRequest)
 
-MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 
 _client = None
 
