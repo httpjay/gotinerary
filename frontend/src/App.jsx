@@ -137,9 +137,9 @@ export default function App() {
 
         {stage === "start" && (
           <section className="hero">
-            <h1>Saw it on TikTok?<br /><span>Let's make it a real trip.</span></h1>
-            <p>People spend <strong>17 hours and 42 minutes</strong> planning one trip. GoTinerary turns a video or an idea into a
-              day-by-day plan with places <strong>checked against Google</strong>, real opening hours, food for your diet, and a list of what to book.</p>
+            <h1>All your travel,<br /><span>streamlined.</span></h1>
+            <p>Planning one trip takes people <strong>17 hours and 42 minutes</strong>. Tell GoTinerary where you want to go and
+              how you like to travel. You get a day-by-day plan with <strong>real places checked on Google</strong>, opening hours, food for your diet, and a list of what to book.</p>
             <Onboarding onDone={discover} loading={loading === "discover"} health={health} />
             {saved.length > 0 && (
               <div className="saved">
