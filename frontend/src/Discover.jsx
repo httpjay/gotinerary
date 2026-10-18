@@ -1,19 +1,34 @@
 import { useMemo, useState } from "react";
-import { CATEGORY_ICON, GROUPS, api, photoSrc, toMin } from "./lib";
+import {
+  ArrowRight, Check, Globe, Hourglass, MapPin, Plus, RotateCw, Search, ShieldCheck, Sparkles, Star, Telescope,
+  Ticket, TriangleAlert, Video, X,
+} from "lucide-react";
+import { GROUPS, api, photoSrc, toMin } from "./lib";
+import { CategoryIcon } from "./icons";
 
 export function Verified({ c, small }) {
   if (c.verified) {
-    return <span className={`vbadge ok${small ? " sm" : ""}`} title={`Name, location, rating and hours from ${c.place?.source || "Google"}, retrieved ${c.place?.retrieved_at || ""}`}>✓ Verified · {c.place?.source || "Google"}</span>;
+    return <span className={`vbadge ok${small ? " sm" : ""}`} title={`Name, location, rating and hours from ${c.place?.source || "Google"}, retrieved ${c.place?.retrieved_at || ""}`}>
+      <ShieldCheck size={13} strokeWidth={2.25} /> Verified · {c.place?.source || "Google"}</span>;
   }
-  return <span className={`vbadge est${small ? " sm" : ""}`} title="Suggested by AI and not found in Google Places. Check it before you go.">⚠ AI estimate</span>;
+  return <span className={`vbadge est${small ? " sm" : ""}`} title="Suggested by AI and not found in Google Places. Check it before you go.">
+    <Sparkles size={13} strokeWidth={2.25} /> AI estimate</span>;
 }
 
 export function Rating({ place }) {
   if (!place?.rating) return null;
   return (
-    <span className="rating">★ {place.rating.toFixed(1)}
+    <span className="rating"><Star size={14} /> {place.rating.toFixed(1)}
       <span className="muted-sm"> ({(place.rating_count || 0).toLocaleString()} {place.source} reviews)</span>
     </span>
+  );
+}
+
+function Sources({ sources }) {
+  if (!sources?.length) return null;
+  return (
+    <p className="sources"><Globe size={14} /> Source{sources.length > 1 ? "s" : ""}: {sources.map((s, i) => (
+      <a key={s.uri} href={s.uri} target="_blank" rel="noreferrer">{s.title}{i < sources.length - 1 ? "," : ""}</a>))}</p>
   );
 }
 
@@ -29,25 +44,22 @@ function Card({ c, state, onSet, onFocus, focused }) {
       <div className="dphoto">
         {c.place?.photo
           ? <img src={photoSrc(c.place.photo)} alt={c.name} loading="lazy" />
-          : <div className="dphoto-empty">{CATEGORY_ICON[c.category] || "📍"}</div>}
-        {state === "must" && <span className="must-tag">⭐ Must-do</span>}
+          : <div className="dphoto-empty"><CategoryIcon category={c.category} size={40} strokeWidth={1.5} /></div>}
+        {state === "must" && <span className="must-tag"><Star size={12} /> Must-do</span>}
         {c.place?.photo_credit && <span className="credit">Photo: {c.place.photo_credit}</span>}
       </div>
       <div className="dbody">
         <div className="dtop"><Verified c={c} small /><Rating place={c.place} /></div>
-        <h4>{CATEGORY_ICON[c.category] || "📍"} {c.name}</h4>
+        <h4><CategoryIcon category={c.category} size={18} /> {c.name}</h4>
         <p className="muted-sm">{c.place?.address || c.area}</p>
-        {c.evidence && <p className="evidence">📱 In your reel: {c.evidence}</p>}
+        {c.evidence && <p className="evidence"><Video size={14} /> In your reel: {c.evidence}</p>}
         <p className="why">{c.why}</p>
-        {c.sources?.length > 0 && (
-          <p className="sources">Source{c.sources.length > 1 ? "s" : ""}: {c.sources.map((s, i) => (
-            <a key={s.uri} href={s.uri} target="_blank" rel="noreferrer">{s.title}{i < c.sources.length - 1 ? ", " : ""}</a>))}</p>
-        )}
+        <Sources sources={c.sources} />
         <div className="facts">
-          <span title="Estimated visit length">⏱ {hrs(c.duration_min)}</span>
+          <span title="Estimated visit length"><Hourglass size={14} /> {hrs(c.duration_min)}</span>
           <span title="Estimated cost per person">{c.est_cost_usd ? `~$${c.est_cost_usd}` : "Free"} <em>est.</em></span>
-          {c.needs_ticket && <span title="Estimate: usually needs a ticket or reservation">🎟 Ticket likely</span>}
-          {c.distance_km != null && <span>📍 {c.distance_km} km from center</span>}
+          {c.needs_ticket && <span title="Estimate: usually needs a ticket or reservation"><Ticket size={14} /> Ticket likely</span>}
+          {c.distance_km != null && <span><MapPin size={14} /> {c.distance_km} km from center</span>}
         </div>
         {c.place?.hours_text?.length > 0 && (
           <button className="linkish" onClick={() => setShowHours(!showHours)}>
@@ -56,9 +68,9 @@ function Card({ c, state, onSet, onFocus, focused }) {
         )}
         {showHours && <ul className="hours">{c.place.hours_text.map((h) => <li key={h}>{h}</li>)}</ul>}
         <div className="dactions">
-          <button className={`pick${state === "save" ? " on" : ""}`} onClick={() => onSet(c.id, state === "save" ? null : "save")}>✓ Add</button>
-          <button className={`pick star${state === "must" ? " on" : ""}`} onClick={() => onSet(c.id, state === "must" ? "save" : "must")}>⭐ Must-do</button>
-          <button className={`pick skip${state === "skip" ? " on" : ""}`} onClick={() => onSet(c.id, state === "skip" ? null : "skip")}>✕ Skip</button>
+          <button className={`pick${state === "save" ? " on" : ""}`} aria-pressed={state === "save"} onClick={() => onSet(c.id, state === "save" ? null : "save")}><Check size={15} /> Add</button>
+          <button className={`pick star${state === "must" ? " on" : ""}`} aria-pressed={state === "must"} onClick={() => onSet(c.id, state === "must" ? "save" : "must")}><Star size={15} /> Must-do</button>
+          <button className={`pick skip${state === "skip" ? " on" : ""}`} aria-pressed={state === "skip"} onClick={() => onSet(c.id, state === "skip" ? null : "skip")}><X size={15} /> Skip</button>
         </div>
       </div>
     </div>
@@ -110,6 +122,7 @@ export default function Discover({ disc, prefs, social, onRetrySocial, onBuild, 
   return (
     <div className="discover">
       <div className="disc-head">
+        <span className="caps primary">Places worth the trip</span>
         <h2>{disc.destination}{disc.country ? <span className="muted">, {disc.country}</span> : null}</h2>
         <p className="summary">{disc.summary}</p>
         {disc.assumptions?.length > 0 && (
@@ -118,12 +131,12 @@ export default function Discover({ disc, prefs, social, onRetrySocial, onBuild, 
           </div>
         )}
         {!disc.verified_source && (
-          <div className="nudge warn">⚠ No Google Maps key: all places are AI estimates and are not verified.</div>
+          <div className="nudge warn"><TriangleAlert size={16} /> No Google Maps key: all places are AI estimates and are not verified.</div>
         )}
-        <p className="muted-sm">Tap <strong>Add</strong> on places you like, <strong>Must-do</strong> on places you can't miss, and <strong>Skip</strong> the rest.</p>
+        <p className="muted-sm">Tap <strong>Add</strong> on places you like, <strong>Must-do</strong> on places you can’t miss, and <strong>Skip</strong> the rest.</p>
       </div>
 
-      {err && <div className="error">⚠️ {err}</div>}
+      {err && <div className="error" role="alert"><TriangleAlert size={18} /> {err}</div>}
 
       {GROUPS.map((g) => {
         const items = all.filter((c) => c.group === g.id);
@@ -136,7 +149,7 @@ export default function Discover({ disc, prefs, social, onRetrySocial, onBuild, 
               {social.status === "loading"
                 ? <div className="loading-inline"><div className="spinner" /> Searching recent articles about TikTok and Instagram spots...</div>
                 : <><p className="hint">{social.note}</p>
-                  {onRetrySocial && <button className="btn tiny" onClick={onRetrySocial}>↻ Try again</button>}</>}
+                  {onRetrySocial && <button className="btn tiny" onClick={onRetrySocial}><RotateCw size={14} /> Try again</button>}</>}
             </section>
           );
         }
@@ -155,21 +168,21 @@ export default function Discover({ disc, prefs, social, onRetrySocial, onBuild, 
       <section className="dgroup">
         <h3>Add your own place</h3>
         <div className="inline">
-          <input value={q} placeholder="Search a place, e.g. a cafe from a reel" onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && search()} />
-          <button className="btn" disabled={searchBusy || !q.trim()} onClick={search}>{searchBusy ? "Searching..." : "Search"}</button>
+          <input value={q} placeholder="Search a place, e.g. a cafe a friend recommended" aria-label="Search a place"
+            onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && search()} />
+          <button className="btn" disabled={searchBusy || !q.trim()} onClick={search}><Search size={16} /> {searchBusy ? "Searching..." : "Search"}</button>
         </div>
         {found && found.length === 0 && <p className="hint">No place found with that name. Try another spelling.</p>}
         {found && found.map((c) => (
           <div key={c.id} className="found">
             <div><strong>{c.name}</strong> <Rating place={c.place} /><br /><span className="muted-sm">{c.place?.address}</span></div>
-            <button className="btn tiny" onClick={() => { addExtra(c); setFound(null); setQ(""); }}>+ Add</button>
+            <button className="btn tiny" onClick={() => { addExtra(c); setFound(null); setQ(""); }}><Plus size={14} /> Add</button>
           </div>
         ))}
       </section>
 
       <section className="dgroup missing">
-        <h3>🔎 What might I be missing?</h3>
+        <h3><Telescope size={22} /> What might I be missing?</h3>
         <p className="muted-sm">After choosing, we look near your picks for places worth a look. Nothing is added unless you choose it.</p>
         {!missing && (
           <button className="btn" disabled={missingBusy || selected.length === 0} onClick={findMissing}>
@@ -182,16 +195,13 @@ export default function Discover({ disc, prefs, social, onRetrySocial, onBuild, 
             {missing.map((c) => (
               <div key={c.id} className={`mini${choice[c.id] ? " on" : ""}`}>
                 <div className="dtop"><Verified c={c} small /><Rating place={c.place} /></div>
-                <strong>{CATEGORY_ICON[c.category] || "📍"} {c.name}</strong>
-                {c.evidence && <p className="evidence">📱 In your reel: {c.evidence}</p>}
-        <p className="why">{c.why}</p>
-        {c.sources?.length > 0 && (
-          <p className="sources">Source{c.sources.length > 1 ? "s" : ""}: {c.sources.map((s, i) => (
-            <a key={s.uri} href={s.uri} target="_blank" rel="noreferrer">{s.title}{i < c.sources.length - 1 ? ", " : ""}</a>))}</p>
-        )}
+                <strong><CategoryIcon category={c.category} size={16} /> {c.name}</strong>
+                {c.evidence && <p className="evidence"><Video size={14} /> In your reel: {c.evidence}</p>}
+                <p className="why">{c.why}</p>
+                <Sources sources={c.sources} />
                 {choice[c.id]
-                  ? <span className="added">✓ Added</span>
-                  : <button className="btn tiny" onClick={() => addExtra({ ...c, group: "gem" })}>+ Add to trip</button>}
+                  ? <span className="added"><Check size={15} /> Added</span>
+                  : <button className="btn tiny" onClick={() => addExtra({ ...c, group: "gem" })}><Plus size={14} /> Add to trip</button>}
               </div>
             ))}
           </div>
@@ -207,7 +217,7 @@ export default function Discover({ disc, prefs, social, onRetrySocial, onBuild, 
           </div>
         </div>
         <button className="btn primary big" disabled={!selected.length || building} onClick={build}>
-          {building ? "Building..." : "Build my itinerary →"}
+          {building ? "Building..." : <>Build my itinerary <ArrowRight size={18} /></>}
         </button>
       </div>
     </div>

@@ -1,14 +1,33 @@
 import { useEffect, useMemo } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
+import { BedDouble } from "lucide-react";
+import { CategoryIcon } from "./icons";
 
-function pinIcon(label, status, active) {
+// Route colours from the design tokens (Leaflet needs literal values).
+const ROUTE = { next: "#BF4F24", done: "#B9B3A8", hotel: "#293B32" };
+
+const iconCache = new Map();
+function svgFor(category) {
+  if (!iconCache.has(category)) iconCache.set(category, renderToStaticMarkup(<CategoryIcon category={category} size={15} strokeWidth={2.25} />));
+  return iconCache.get(category);
+}
+
+function pinIcon(p, active) {
+  const inner = p.label != null ? p.label : svgFor(p.icon);
   return L.divIcon({
     className: "",
-    html: `<div class="pin pin-${status}${active ? " pin-active" : ""}">${label}</div>`,
-    iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -14],
+    html: `<div class="pin pin-${p.status}${active ? " pin-active" : ""}">${inner}</div>`,
+    iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -16],
   });
 }
+
+const hotelIcon = L.divIcon({
+  className: "",
+  html: `<div class="pin pin-hotel">${renderToStaticMarkup(<BedDouble size={15} strokeWidth={2.25} />)}</div>`,
+  iconSize: [32, 32], iconAnchor: [16, 16],
+});
 
 function FitBounds({ bounds, focus }) {
   const map = useMap();
@@ -45,19 +64,19 @@ export default function MapView({ points, route, center, focusId, onSelect, me, 
         url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maxZoom={19}
       />
       <FitBounds bounds={bounds} focus={focus} />
-      {route && fromHotel && <Polyline positions={fromHotel} pathOptions={{ color: "#2f80ed", weight: 3, dashArray: "4 6" }} />}
-      {route && done.length > 1 && <Polyline positions={done} pathOptions={{ color: "#9aa5b1", weight: 4, dashArray: "6 8" }} />}
-      {route && bridge && <Polyline positions={bridge} pathOptions={{ color: "#9aa5b1", weight: 4, dashArray: "6 8" }} />}
-      {route && rest.length > 1 && <Polyline positions={rest} pathOptions={{ color: "#f26522", weight: 4, opacity: 0.85 }} />}
+      {route && fromHotel && <Polyline positions={fromHotel} pathOptions={{ color: ROUTE.hotel, weight: 3, dashArray: "2 8", lineCap: "round" }} />}
+      {route && done.length > 1 && <Polyline positions={done} pathOptions={{ color: ROUTE.done, weight: 4, dashArray: "6 8" }} />}
+      {route && bridge && <Polyline positions={bridge} pathOptions={{ color: ROUTE.done, weight: 4, dashArray: "6 8" }} />}
+      {route && rest.length > 1 && <Polyline positions={rest} pathOptions={{ color: ROUTE.next, weight: 4, opacity: 0.9, dashArray: "1 9", lineCap: "round" }} />}
       {points.map((p) => (
-        <Marker key={p.id} position={[p.lat, p.lng]} icon={pinIcon(p.label, p.status, p.id === focusId)}
+        <Marker key={p.id} position={[p.lat, p.lng]} icon={pinIcon(p, p.id === focusId)}
           eventHandlers={{ click: () => onSelect?.(p.id) }}>
           <Popup><strong>{p.title}</strong>{p.sub ? <><br />{p.sub}</> : null}</Popup>
         </Marker>
       ))}
       {hotel && (
         <Marker position={[hotel.lat, hotel.lng]}
-          icon={L.divIcon({ className: "", html: '<div class="pin pin-hotel">🏨</div>', iconSize: [30, 30], iconAnchor: [15, 15] })}>
+          icon={hotelIcon}>
           <Popup><strong>{hotel.name}</strong><br />Your stay</Popup>
         </Marker>
       )}

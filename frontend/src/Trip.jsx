@@ -1,16 +1,24 @@
 import { useState } from "react";
 import {
-  CATEGORY_ICON, REASONS, STATUS, api, bookLink, downloadICS, flightLinks, fmtDate, fmtTime,
+  ArrowDown, ArrowLeft, ArrowUp, BedDouble, CalendarDays, CalendarPlus, Check, CircleCheck, Clock3, CloudRain, Coffee,
+  Copy, ExternalLink, Footprints, Info, Lightbulb, ListChecks, MapPin, Navigation, Pencil, Plane, RefreshCw, Route,
+  Search, ShieldCheck, Sparkles, Ticket, TramFront, TriangleAlert, Undo2, Utensils, X, Zap,
+} from "lucide-react";
+import {
+  REASONS, STATUS, api, bookLink, downloadICS, flightLinks, fmtDate, fmtTime,
   mapsLink, nearbyFoodLink, nowHHMM, photoSrc, shareText, toMin,
 } from "./lib";
 import { Rating, Verified } from "./Discover";
+import { CategoryIcon, ReasonIcon, WeatherIcon } from "./icons";
+
+const PROVIDER_NOTE = "We find the options, you book on the provider’s site.";
 
 function Leg({ stop }) {
   if (!stop.travel_min) return null;
   const walk = stop.travel_mode === "walk";
   return (
     <div className="leg" title="Estimate: straight-line distance × 1.3, plus a small delay buffer">
-      <span>{walk ? "🚶" : "🚇"}</span>
+      {walk ? <Footprints size={14} /> : <TramFront size={14} />}
       {stop.travel_min} min {walk ? "walk" : "by metro, bus or taxi"} · {stop.distance_km} km <em>est.</em>
     </div>
   );
@@ -21,14 +29,16 @@ function FreeTime({ prev, stop }) {
   const gap = toMin(stop.start_time) - toMin(prev.end_time) - stop.travel_min;
   if (gap < 20) return null;
   const h = Math.floor(gap / 60), m = gap % 60;
-  return <div className="free">☕ Free time · {h ? `${h} h ` : ""}{m ? `${m} min` : ""}</div>;
+  return <div className="free"><Coffee size={14} /> Free time · {h ? `${h} h ` : ""}{m ? `${m} min` : ""}</div>;
 }
 
 function StopCard({ stop, n, city, active, onSelect, onSwap, swapping, onMove, onRemove, first, last, editing }) {
   const meal = stop.kind === "meal";
   return (
     <div className={`stop ${stop.status}${active ? " active" : ""}${meal ? " meal" : ""}`} onClick={() => onSelect(stop.id)}>
-      <div className={`num num-${stop.status}`}>{stop.status === "done" ? "✓" : n}</div>
+      <div className={`num num-${stop.status}`}>
+        {stop.status === "done" ? <Check size={16} strokeWidth={3} /> : meal ? <Utensils size={16} /> : n}
+      </div>
       <div className="stop-body">
         <div className="stop-top">
           <span className="time">{fmtTime(stop.start_time)} to {fmtTime(stop.end_time)}</span>
@@ -36,38 +46,38 @@ function StopCard({ stop, n, city, active, onSelect, onSwap, swapping, onMove, o
           {meal && <span className="badge meal">{stop.meal === "dinner" ? "Dinner" : stop.meal === "lunch" ? "Lunch" : "Meal"}</span>}
           <Verified c={stop} small />
         </div>
-        <h4>{CATEGORY_ICON[stop.category] || "📍"} {stop.name}</h4>
+        <h4><CategoryIcon category={stop.category} size={18} /> {stop.name}</h4>
         {stop.place?.rating && <div><Rating place={stop.place} /></div>}
         <p className="desc">{stop.description}</p>
-        {stop.why && stop.why !== stop.description && <p className="why">💡 {stop.why}</p>}
+        {stop.why && stop.why !== stop.description && <p className="why"><Lightbulb size={14} /> {stop.why}</p>}
         <div className="facts">
-          {stop.hours_today && <span title={`Opening hours on this date, from ${stop.place?.source || "Google"}`}>🕘 {stop.hours_today}</span>}
-          {stop.needs_ticket && <span>🎟 Ticket likely <em>est.</em></span>}
+          {stop.hours_today && <span title={`Opening hours on this date, from ${stop.place?.source || "Google"}`}><Clock3 size={14} /> {stop.hours_today}</span>}
+          {stop.needs_ticket && <span><Ticket size={14} /> Ticket likely <em>est.</em></span>}
           <span>{stop.est_cost_usd ? `~$${stop.est_cost_usd} pp` : "Free"} <em>est.</em></span>
         </div>
         {stop.warnings?.length > 0 && (
-          <ul className="swarn">{stop.warnings.map((w) => <li key={w}>⚠ {w}</li>)}</ul>
+          <ul className="swarn">{stop.warnings.map((w) => <li key={w}><TriangleAlert size={14} /> {w}</li>)}</ul>
         )}
         <div className="stop-foot" onClick={(e) => e.stopPropagation()}>
           {editing ? (
             <div className="actions">
-              <button className="btn tiny" disabled={first} onClick={() => onMove(stop.id, -1)}>↑</button>
-              <button className="btn tiny" disabled={last} onClick={() => onMove(stop.id, 1)}>↓</button>
+              <button className="btn tiny" disabled={first} aria-label="Move earlier" onClick={() => onMove(stop.id, -1)}><ArrowUp size={14} /></button>
+              <button className="btn tiny" disabled={last} aria-label="Move later" onClick={() => onMove(stop.id, 1)}><ArrowDown size={14} /></button>
               <button className="btn tiny danger" onClick={() => onRemove(stop.id)}>Remove</button>
             </div>
           ) : (
             <div className="actions">
               {stop.status !== "done" && (
                 <button className="btn tiny" disabled={swapping} onClick={() => onSwap(stop.id)}>
-                  {swapping ? "..." : meal ? "🔄 Other restaurant" : "🔄 Swap"}
+                  {swapping ? "..." : <><RefreshCw size={14} /> {meal ? "Other restaurant" : "Swap"}</>}
                 </button>
               )}
               {meal && !stop.verified
-                ? <a className="btn tiny" href={nearbyFoodLink(stop)} target="_blank" rel="noreferrer">🔍 Food nearby</a>
-                : <a className="btn tiny" href={mapsLink(stop, city)} target="_blank" rel="noreferrer">🧭 Map</a>}
+                ? <a className="btn tiny" href={nearbyFoodLink(stop)} target="_blank" rel="noreferrer"><Search size={14} /> Food nearby</a>
+                : <a className="btn tiny" href={mapsLink(stop, city)} target="_blank" rel="noreferrer"><Navigation size={14} /> Map</a>}
               {(stop.needs_ticket || (meal && stop.verified)) && (
                 <a className="btn tiny" href={bookLink(stop, city)} target="_blank" rel="noreferrer">
-                  {meal ? "📅 Reserve" : "🎟️ Tickets"}
+                  {meal ? <><CalendarPlus size={14} /> Reserve</> : <><Ticket size={14} /> Tickets</>}
                 </a>
               )}
             </div>
@@ -92,14 +102,15 @@ function ReplanPanel({ onReplan, busy, isToday }) {
   if (!open) {
     return (
       <button className="replan-cta" onClick={() => setOpen(true)}>
-        <span className="pulse" /> Plans changed? <strong>Re-plan my day</strong>
+        <span className="pulse" /><strong>Re-plan my day</strong>
+        <span className="grow">Raining, tired, running late? We’ll reshuffle the rest of today.</span>
       </button>
     );
   }
   return (
     <div className="replan">
-      <div className="replan-head"><strong>⚡ Re-plan the rest of today</strong>
-        <button className="x" onClick={() => setOpen(false)}>✕</button></div>
+      <div className="replan-head"><strong><Zap size={20} /> Re-plan the rest of today</strong>
+        <button className="icon-btn" aria-label="Close re-plan" onClick={() => setOpen(false)}><X size={18} /></button></div>
       <div className="replan-row">
         <label>Time now <input type="time" value={time} onChange={(e) => setTime(e.target.value)} /></label>
         <label className="gps"><input type="checkbox" checked={useGps} onChange={(e) => setUseGps(e.target.checked)} /> Use my location</label>
@@ -107,7 +118,7 @@ function ReplanPanel({ onReplan, busy, isToday }) {
       <div className="reasons">
         {REASONS.map((r) => (
           <button key={r.id} disabled={busy} className={`reason${reason === r.id ? " on" : ""}`} onClick={() => go(r.id)}>
-            <span>{r.icon}</span>{r.label}
+            <ReasonIcon id={r.id} />{r.label}
           </button>
         ))}
       </div>
@@ -118,7 +129,7 @@ function ReplanPanel({ onReplan, busy, isToday }) {
           <button className="btn primary" disabled={busy || !note.trim()} onClick={() => go("custom")}>Go</button>
         </div>
       )}
-      {busy && <div className="thinking">Rebuilding your day...</div>}
+      {busy && <div className="thinking" role="status"><div className="spinner" /> Rebuilding your day...</div>}
     </div>
   );
 }
@@ -195,7 +206,7 @@ function PlanTab({ it, setIt, dayIdx, setDayIdx, weather, focusId, setFocusId, s
               onClick={() => { setDayIdx(i); setFocusId(null); setChange(null); setDayUn([]); }}>
               <span className="tab-day">Day {d.day}</span>
               <span className="tab-date">{fmtDate(d.date)}</span>
-              {w && <span className="tab-w">{w.icon} {w.max}°</span>}
+              {w && <span className="tab-w"><WeatherIcon text={w.text} /> {w.max}°</span>}
             </button>
           );
         })}
@@ -204,28 +215,29 @@ function PlanTab({ it, setIt, dayIdx, setDayIdx, weather, focusId, setFocusId, s
       <div className="theme-row">
         <h3 className="theme">{day.theme}</h3>
         <div className="actions">
-          <button className="btn tiny" disabled={busy} onClick={() => edit(ids, true)}>🧭 Optimize route</button>
-          <button className={`btn tiny${editing ? " on" : ""}`} onClick={() => setEditing(!editing)}>{editing ? "Done editing" : "✏️ Edit day"}</button>
+          <button className="btn tiny" disabled={busy} onClick={() => edit(ids, true)}><Route size={14} /> Optimize route</button>
+          <button className={`btn tiny${editing ? " on" : ""}`} onClick={() => setEditing(!editing)}>
+            {editing ? <><Check size={14} /> Done editing</> : <><Pencil size={14} /> Edit day</>}</button>
         </div>
       </div>
       {weather[day.date]?.rain >= 50 && (
-        <div className="nudge">🌧️ {weather[day.date].rain}% chance of rain. If it rains, tap <strong>Re-plan my day</strong> for indoor options.</div>
+        <div className="nudge"><CloudRain size={16} /><span>{weather[day.date].rain}% chance of rain. If it rains, tap <strong>Re-plan my day</strong> for indoor options.</span></div>
       )}
 
       <ReplanPanel onReplan={replan} busy={busy} isToday={day.date === todayIso} />
 
       {change && (
         <div className="change">
-          <p>🤖 {change.explanation}</p>
+          <p><Sparkles size={16} /> {change.explanation}</p>
           <div className="diff">
             {change.removed.map((n) => <span key={`r-${n}`} className="rm">− {n}</span>)}
             {change.added.map((n) => <span key={`a-${n}`} className="add">+ {n}</span>)}
           </div>
-          <button className="btn tiny" onClick={() => { setIt(change.prev); setChange(null); setDayUn([]); }}>↩ Undo</button>
+          <button className="btn tiny" onClick={() => { setIt(change.prev); setChange(null); setDayUn([]); }}><Undo2 size={14} /> Undo</button>
         </div>
       )}
       {dayUn.length > 0 && (
-        <div className="conflicts">{dayUn.map((u) => <div key={u.name}>⚠ <strong>{u.name}</strong>: {u.reason}</div>)}</div>
+        <div className="conflicts">{dayUn.map((u) => <div key={u.name}><TriangleAlert size={15} /><span><strong>{u.name}</strong>: {u.reason}</span></div>)}</div>
       )}
 
       <div className="timeline">
@@ -242,7 +254,7 @@ function PlanTab({ it, setIt, dayIdx, setDayIdx, weather, focusId, setFocusId, s
       </div>
 
       {it.tips?.length > 0 && (
-        <div className="tips"><h4>Local tips</h4><ul>{it.tips.map((t) => <li key={t}>{t}</li>)}</ul></div>
+        <div className="tips"><h4><Lightbulb size={18} /> Local tips</h4><ul>{it.tips.map((t) => <li key={t}>{t}</li>)}</ul></div>
       )}
     </>
   );
@@ -272,40 +284,56 @@ function StayTab({ it, setIt, setError }) {
 
   return (
     <div className="stay">
+      <p className="provider-note"><Info size={16} /> {PROVIDER_NOTE}</p>
       <section className="panel-card">
-        <h3>✈️ Flights</h3>
-        <p className="muted-sm">{p.origin || "Your city"} → {it.airport_code || it.destination} · {fmtDate(it.start_date)} to {fmtDate(p.end_date || it.days[it.days.length - 1].date)} · {p.travelers || 1} traveler(s)</p>
+        <h3><Plane size={22} /> Flights</h3>
+        <div className="pass" aria-label="Flight search summary">
+          <div className="pass-main">
+            <span className="caps muted">Outbound · {fmtDate(it.start_date)}</span>
+            <div className="pass-route">
+              <span className="pass-code">{(p.origin || "Your city").slice(0, 14)}</span>
+              <span className="pass-line"><Plane size={18} /></span>
+              <span className="pass-code">{it.airport_code || it.destination}</span>
+            </div>
+            <span className="muted-sm">Return {fmtDate(p.end_date || it.days[it.days.length - 1].date)}</span>
+          </div>
+          <div className="pass-stub">
+            <span className="muted-sm">Travelers</span>
+            <strong>{p.travelers || 1}</strong>
+            <span className="muted-sm">Prices on provider</span>
+          </div>
+        </div>
         <div className="linkrow">
-          {Object.entries(fl).map(([k, v]) => <a key={k} className="btn" href={v} target="_blank" rel="noreferrer">Search on {k} ↗</a>)}
+          {Object.entries(fl).map(([k, v]) => <a key={k} className="btn" href={v} target="_blank" rel="noreferrer">Search on {k} <ExternalLink size={14} /></a>)}
         </div>
         <p className="hint">Live flight prices are not connected yet. These buttons open real searches with your dates filled in. Prices change often, so compare total price, bags and change rules there.</p>
         {!p.origin && <p className="hint warn">Tip: add your departure airport (for example LAX) for better links.</p>}
       </section>
 
       <section className="panel-card">
-        <h3>🏨 Where to stay</h3>
+        <h3><BedDouble size={22} /> Where to stay</h3>
         <p className="muted-sm">We look for well-rated stays close to the middle of your planned stops.</p>
         {it.hotel && (
-          <div className="chosen"><span>✓ Staying at <strong>{it.hotel.place.name}</strong> ({it.hotel.avg_km_to_stops} km average to your stops)</span>
+          <div className="chosen"><span><CircleCheck size={16} /> <span>Staying at <strong>{it.hotel.place.name}</strong> ({it.hotel.avg_km_to_stops} km average to your stops)</span></span>
             <button className="btn tiny" disabled={!!choosing} onClick={() => choose(null)}>Remove</button></div>
         )}
-        {note && <div className="change"><p>🤖 {note}</p></div>}
+        {note && <div className="change"><p><Sparkles size={16} /> {note}</p></div>}
         {!hotels && <button className="btn primary" disabled={busy} onClick={find}>{busy ? "Searching..." : "Find stays near my plan"}</button>}
         {hotels && hotels.length === 0 && <p className="hint">No stays found. A Google Maps key is needed for this.</p>}
         <div className="hotels">
           {hotels?.map((h) => (
             <div key={h.place.place_id} className={`hotel${it.hotel?.place.place_id === h.place.place_id ? " on" : ""}`}>
-              {h.place.photo ? <img src={photoSrc(h.place.photo, 400)} alt={h.place.name} loading="lazy" /> : <div className="dphoto-empty">🏨</div>}
+              {h.place.photo ? <img src={photoSrc(h.place.photo, 400)} alt={h.place.name} loading="lazy" /> : <div className="dphoto-empty"><BedDouble size={32} strokeWidth={1.5} /></div>}
               <div className="hbody">
                 <strong>{h.place.name}</strong>
                 <Rating place={h.place} />
                 <span className="muted-sm">{h.place.address}</span>
-                <span className="muted-sm">📍 {h.avg_km_to_stops} km average to your stops</span>
+                <span className="muted-sm"><MapPin size={14} /> {h.avg_km_to_stops} km average to your stops</span>
                 <div className="linkrow">
-                  {Object.entries(h.links).map(([k, v]) => <a key={k} className="btn tiny" href={v} target="_blank" rel="noreferrer">{k} ↗</a>)}
+                  {Object.entries(h.links).map(([k, v]) => <a key={k} className="btn tiny" href={v} target="_blank" rel="noreferrer">{k} <ExternalLink size={13} /></a>)}
                 </div>
                 {it.hotel?.place.place_id === h.place.place_id
-                  ? <span className="added">✓ Your stay</span>
+                  ? <span className="added"><Check size={15} /> Your stay</span>
                   : <button className="btn tiny primary" disabled={!!choosing} onClick={() => choose(h)}>
                     {choosing === h.place.place_id ? "Updating plan..." : "Choose this stay"}
                   </button>}
@@ -313,7 +341,7 @@ function StayTab({ it, setIt, setError }) {
             </div>
           ))}
         </div>
-        {hotels?.length > 0 && <p className="hint">Prices: we don't show prices we can't verify. Open a provider to see the real total with taxes and the cancellation policy.</p>}
+        {hotels?.length > 0 && <p className="hint">Prices: we don’t show prices we can’t verify. Open a provider to see the real total with taxes and the cancellation policy.</p>}
       </section>
     </div>
   );
@@ -328,7 +356,7 @@ function BookingsTab({ it, bookings, setBookings }) {
   const conf = bookings.reduce((a, b) => a + (b.status === "confirmed" ? (b.confirmed_cost_usd || 0) : 0), 0);
   const visitsCost = it.days.reduce((a, d) => a + d.stops.reduce((x, s) => x + s.est_cost_usd, 0), 0) * (it.prefs?.travelers || 1);
   const budget = it.prefs?.budget_total;
-  const icon = { flight: "✈️", hotel: "🏨", ticket: "🎟️", restaurant: "🍽️" };
+  const icon = { flight: Plane, hotel: BedDouble, ticket: Ticket, restaurant: Utensils };
 
   return (
     <div className="book">
@@ -347,38 +375,42 @@ function BookingsTab({ it, bookings, setBookings }) {
 
       {(it.warnings?.length > 0 || it.unscheduled?.length > 0) && (
         <div className="conflicts">
-          {it.unscheduled?.map((u) => <div key={u.name}>⚠ <strong>{u.name}</strong> was not scheduled: {u.reason}</div>)}
-          {it.warnings?.map((w) => <div key={w}>ℹ️ {w}</div>)}
+          {it.unscheduled?.map((u) => <div key={u.name}><TriangleAlert size={15} /><span><strong>{u.name}</strong> was not scheduled: {u.reason}</span></div>)}
+          {it.warnings?.map((w) => <div key={w}><Info size={15} /><span>{w}</span></div>)}
         </div>
       )}
 
-      <p className="hint">GoTinerary never books or pays for you. Book on the provider's site, then mark the item <strong>Confirmed</strong> and add your booking reference.</p>
+      <p className="provider-note"><Info size={16} />
+        <span>{PROVIDER_NOTE} GoTinerary never books or pays for you. When you’ve booked, mark the item <strong>Confirmed</strong> and add your booking reference.</span></p>
       <div className="blist">
-        {bookings.map((b) => (
+        {bookings.map((b) => {
+          const Icon = icon[b.kind] || ListChecks;
+          return (
           <div key={b.id} className={`bitem s-${b.status}`}>
             <div className="bhead">
-              <span className="bicon">{icon[b.kind]}</span>
+              <span className="bicon"><Icon size={18} /></span>
               <div className="bt"><strong>{b.title}</strong><span className="muted-sm">{b.detail}</span></div>
-              <select value={b.status} onChange={(e) => upd(b.id, { status: e.target.value })}>
+              <select aria-label={`Status for ${b.title}`} value={b.status} onChange={(e) => upd(b.id, { status: e.target.value })}>
                 {STATUS.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
               </select>
             </div>
             <div className="brow">
               {b.est_cost_usd ? <span className="muted-sm">~${b.est_cost_usd} est.</span> : <span />}
-              <input placeholder="Booking reference" value={b.reference || ""} onChange={(e) => upd(b.id, { reference: e.target.value })} />
-              <input type="number" placeholder="Paid ($)" value={b.confirmed_cost_usd ?? ""}
+              <input aria-label="Booking reference" placeholder="Booking reference" value={b.reference || ""} onChange={(e) => upd(b.id, { reference: e.target.value })} />
+              <input aria-label="Amount paid in dollars" type="number" placeholder="Paid ($)" value={b.confirmed_cost_usd ?? ""}
                 onChange={(e) => upd(b.id, { confirmed_cost_usd: e.target.value === "" ? null : Number(e.target.value) })} />
-              {b.link && <a className="btn tiny" href={b.link} target="_blank" rel="noreferrer">Open ↗</a>}
+              {b.link && <a className="btn tiny" href={b.link} target="_blank" rel="noreferrer">Open <ExternalLink size={13} /></a>}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
       {est > 0 && <p className="muted-sm">Estimated tickets and dinners: about ${est.toLocaleString()} for your group.</p>}
 
       <div className="linkrow">
-        <button className="btn" onClick={() => downloadICS(it)}>📅 Add to calendar</button>
+        <button className="btn" onClick={() => downloadICS(it)}><CalendarPlus size={16} /> Add to calendar</button>
         <button className="btn" onClick={() => { navigator.clipboard?.writeText(shareText(it)); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>
-          {copied ? "✓ Copied" : "📋 Copy trip as text"}
+          {copied ? <><Check size={16} /> Copied</> : <><Copy size={16} /> Copy trip as text</>}
         </button>
       </div>
     </div>
@@ -392,23 +424,24 @@ export default function Trip(props) {
     <section className="trip">
       <div className="trip-head">
         <div>
+          <span className="caps primary">Your trip</span>
           <h2>{it.destination}</h2>
-          <p className="muted">{fmtDate(it.start_date)} · {it.days.length} {it.days.length === 1 ? "day" : "days"}
-            {it.verified_source && <> · <span className="vtext">✓ Places checked with {it.verified_source}</span></>}</p>
+          <p className="muted"><CalendarDays size={15} /> {fmtDate(it.start_date)} · {it.days.length} {it.days.length === 1 ? "day" : "days"}
+            {it.verified_source && <> · <span className="vtext"><ShieldCheck size={15} /> Places checked with {it.verified_source}</span></>}</p>
         </div>
         <div className="trip-actions">
-          <button className="btn ghost" onClick={props.onBack}>← Places</button>
+          <button className="btn ghost" onClick={props.onBack}><ArrowLeft size={16} /> Places</button>
           <button className="btn ghost" onClick={props.onNew}>New trip</button>
         </div>
       </div>
       {it.summary && <p className="summary">{it.summary}</p>}
       {it.unscheduled?.length > 0 && tab === "plan" && (
-        <div className="conflicts">{it.unscheduled.map((u) => <div key={u.name}>⚠ <strong>{u.name}</strong> didn't fit: {u.reason}</div>)}</div>
+        <div className="conflicts">{it.unscheduled.map((u) => <div key={u.name}><TriangleAlert size={15} /><span><strong>{u.name}</strong> didn’t fit: {u.reason}</span></div>)}</div>
       )}
-      <div className="maintabs">
-        <button className={tab === "plan" ? "on" : ""} onClick={() => setTab("plan")}>🗓 Plan</button>
-        <button className={tab === "stay" ? "on" : ""} onClick={() => setTab("stay")}>🏨 Stay & flights</button>
-        <button className={tab === "book" ? "on" : ""} onClick={() => setTab("book")}>✅ Bookings{toBook ? <span className="pill">{toBook}</span> : null}</button>
+      <div className="maintabs" role="tablist">
+        <button role="tab" aria-selected={tab === "plan"} className={tab === "plan" ? "on" : ""} onClick={() => setTab("plan")}><CalendarDays size={16} /> Plan</button>
+        <button role="tab" aria-selected={tab === "stay"} className={tab === "stay" ? "on" : ""} onClick={() => setTab("stay")}><BedDouble size={16} /> Stay & flights</button>
+        <button role="tab" aria-selected={tab === "book"} className={tab === "book" ? "on" : ""} onClick={() => setTab("book")}><ListChecks size={16} /> Bookings{toBook ? <span className="pill">{toBook}</span> : null}</button>
       </div>
       {tab === "plan" && <PlanTab {...props} />}
       {tab === "stay" && <StayTab {...props} />}
